@@ -1,19 +1,15 @@
 import axios from 'axios';
 import { useAuthStore } from '../stores/authStore';
 
-// 开发环境使用代理，生产环境使用环境变量
-const API_BASE_URL = import.meta.env.PROD 
-  ? (import.meta.env.VITE_API_URL || '') 
-  : '';
+const API_BASE_URL = 'https://backend-production-a216.up.railway.app';
 
 const api = axios.create({
-  baseURL: API_BASE_URL ? `${API_BASE_URL}/api` : '/api',
+  baseURL: `${API_BASE_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// 请求拦截器：添加 token
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token;
   if (token) {
@@ -22,21 +18,12 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 响应拦截器：处理错误
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // 只在真正的认证失败时才退出登录
-    // 网络错误或其他错误不应该导致退出登录
     if (error.response?.status === 401) {
-      console.error('认证失败 (401):', error.config?.url);
-      console.error('错误详情:', error.response?.data);
-      
-      // 只有在明确的认证错误时才退出登录
-      // 避免因为网络问题或其他临时错误导致退出
       const errorMessage = error.response?.data?.error || '';
       if (errorMessage.includes('token') || errorMessage.includes('auth') || errorMessage.includes('unauthorized')) {
-        console.warn('Token 无效，退出登录');
         useAuthStore.getState().logout();
         window.location.href = '/login';
       }
@@ -47,13 +34,9 @@ api.interceptors.response.use(
 
 export default api;
 
-// API 方法
 export const authAPI = {
   login: () => {
-    // 开发环境使用代理，生产环境使用完整 URL
-    const loginUrl = import.meta.env.PROD 
-      ? `${import.meta.env.VITE_API_URL}/api/auth/secondme/login`
-      : '/api/auth/secondme/login';
+    const loginUrl = `${API_BASE_URL}/api/auth/secondme/login?frontend_url=${encodeURIComponent(window.location.origin)}`;
     window.location.href = loginUrl;
   },
   getMe: () => api.get('/auth/me'),
@@ -113,7 +96,7 @@ export const grudgeAPI = {
 
 export const fileAPI = {
   listOutputs: () => api.get('/files/outputs'),
-  downloadOutput: (filename: string) => `/api/files/outputs/${filename}`,
+  downloadOutput: (filename: string) => `${API_BASE_URL}/api/files/outputs/${filename}`,
   deleteOutput: (filename: string) => api.delete(`/files/outputs/${filename}`),
 };
 

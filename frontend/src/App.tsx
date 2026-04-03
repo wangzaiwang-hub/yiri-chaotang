@@ -7,6 +7,7 @@ import Login from './pages/Login';
 import JoinCourt from './pages/JoinCourt';
 import Court from './pages/Court';
 import SelectGender from './pages/SelectGender';
+import AuthCallback from './pages/AuthCallback';
 
 function App() {
   const { isAuthenticated } = useAuthStore();
@@ -15,6 +16,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/join/:courtId" element={<JoinCourt />} />
         <Route
           path="/select-gender"
