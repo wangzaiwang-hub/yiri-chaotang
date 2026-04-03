@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>清明节活动执行方案</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Microsoft YaHei', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      overflow: hidden;
+    }
+    .slide {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+      padding: 60px;
+      background: white;
+      position: relative;
+    }
+    .slide.active { display: flex; flex-direction: column; justify-content: center; }
+    .slide h2 {
+      font-size: 48px;
+      color: #333;
+      margin-bottom: 40px;
+      text-align: center;
+    }
+    .slide .content {
+      font-size: 24px;
+      line-height: 1.8;
+      color: #666;
+      text-align: center;
+    }
+    .slide-number {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      font-size: 18px;
+      color: #999;
+    }
+    .controls {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 1000;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    button:hover { background: #764ba2; transform: scale(1.05); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <section class="slide active">
+    <h2>清明节活动执行方案</h2>
+    <div class="content">按 → 或点击"下一页"开始演示</div>
+    <div class="slide-number">封面</div>
+  </section>
+  
+  
+        <section class="slide">
+          <h2>清明节活动策划</h2>
+          <div class="content"><h2>慎终追远·踏青思源</h2><p>传承传统文化，增进情感交流</p><p>活动时间：清明节前一周至假期</p><p>预算：20万元</p></div>
+          <div class="slide-number">1 / 6</div>
+        </section>
+      
+
+        <section class="slide">
+          <h2>活动亮点</h2>
+          <div class="content"><ul><li><strong>传统文化体验</strong>：青团制作、风筝DIY、插柳祈福</li><li><strong>踏青游园</strong>：春日市集、摄影大赛、亲子游戏</li><li><strong>公益祭扫</strong>：鲜花换纸钱、代祭服务、纪念植树</li><li><strong>线上互动</strong>：云端祭扫、文化传播、挑战赛</li></ul></div>
+          <div class="slide-number">2 / 6</div>
+        </section>
+      
+
+        <section class="slide">
+          <h2>活动当天流程</h2>
+          <div class="content"><h3>上午场（9:00-12:00）</h3><ul><li>9:00 开幕式</li><li>9:30 各体验区开放</li><li>11:00 诗词吟诵会</li></ul><h3>下午场（14:00-17:30）</h3><ul><li>14:00 风筝放飞大会</li><li>15:30 亲子游戏竞赛</li><li>16:30 颁奖闭幕</li></ul></div>
+          <div class="slide-number">3 / 6</div>
+        </section>
+      
+
+        <section class="slide">
+          <h2>预算分配</h2>
+          <div class="content"><ul><li>场地布置：5万元（25%）</li><li>宣传推广：4万元（20%）</li><li>物料采购：3万元（15%）</li><li>奖品礼品：2.5万元（12.5%）</li><li>人员费用：2万元（10%）</li><li>技术支持：1.5万元（7.5%）</li><li>应急备用：2万元（10%）</li></ul></div>
+          <div class="slide-number">4 / 6</div>
+        </section>
+      
+
+        <section class="slide">
+          <h2>宣传推广节奏</h2>
+          <div class="content"><h3>三阶段传播</h3><ul><li><strong>前期预热</strong>（提前2周）：社交媒体话题、KOL合作、线下物料</li><li><strong>活动期间</strong>：实时直播、UGC征集、媒体报道</li><li><strong>后期传播</strong>：精彩回顾、作品展示、反馈收集</li></ul></div>
+          <div class="slide-number">5 / 6</div>
+        </section>
+      
+
+        <section class="slide">
+          <h2>预期效果</h2>
+          <div class="content"><ul><li>线下参与：3000+人次</li><li>线上互动：10万+</li><li>文化传承：提升传统节日认知</li><li>社会效益：倡导文明祭扫</li><li>品牌影响：提升组织形象</li></ul></div>
+          <div class="slide-number">6 / 6</div>
+        </section>
+      
+
+  <div class="controls">
+    <button id="prev">← 上一页</button>
+    <button id="next">下一页 →</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const prevBtn = document.getElementById('prev');
+    const nextBtn = document.getElementById('next');
+
+    function showSlide(n) {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (n + slides.length) % slides.length;
+      slides[currentSlide].classList.add('active');
+      
+      prevBtn.disabled = currentSlide === 0;
+      nextBtn.disabled = currentSlide === slides.length - 1;
+    }
+
+    prevBtn.addEventListener('click', () => showSlide(currentSlide - 1));
+    nextBtn.addEventListener('click', () => showSlide(currentSlide + 1));
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') showSlide(currentSlide - 1);
+      if (e.key === 'ArrowRight') showSlide(currentSlide + 1);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "chaotang",
+  "version": "1.0.0",
+  "description": "朝堂 · 一日帝王 - 基于 SecondMe API 的虚拟分身权力游戏",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd backend && npm run build && cd ../frontend && npm run build"
+  },
+  "keywords": ["secondme", "chaotang", "ai", "game"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

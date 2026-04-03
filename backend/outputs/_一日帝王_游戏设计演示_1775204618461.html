@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>《一日帝王》游戏设计演示</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Microsoft YaHei', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      overflow: hidden;
+    }
+    .slide {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+      padding: 60px;
+      background: white;
+      position: relative;
+    }
+    .slide.active { display: flex; flex-direction: column; justify-content: center; }
+    .slide h2 {
+      font-size: 48px;
+      color: #333;
+      margin-bottom: 40px;
+      text-align: center;
+    }
+    .slide .content {
+      font-size: 24px;
+      line-height: 1.8;
+      color: #666;
+      text-align: center;
+    }
+    .slide-number {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      font-size: 18px;
+      color: #999;
+    }
+    .controls {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 1000;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    button:hover { background: #764ba2; transform: scale(1.05); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <section class="slide active">
+    <h2>《一日帝王》游戏设计演示</h2>
+    <div class="content">按 → 或点击"下一页"开始演示</div>
+    <div class="slide-number">封面</div>
+  </section>
+  
+  
+        <section class="slide">
+          <h2>游戏定位</h2>
+          <div class="content"><h2>硬核历史模拟 × 策略决策</h2><ul><li>目标群体：喜欢历史和策略的玩家</li><li>游戏时长：单局30-60分钟</li><li>重玩价值：多结局、随机事件</li></ul></div>
+          <div class="slide-number">1 / 4</div>
+        </section>
+      
+
+        <section class="slide">
+          <h2>一日流程</h2>
+          <div class="content"><h3>卯时（5-7点）</h3><p>起床、早朝准备</p><h3>辰时（7-9点）</h3><p>早朝、处理奏折</p><h3>巳时-午时（9-13点）</h3><p>政务处理、接见大臣</p><h3>未时-申时（13-17点）</h3><p>后宫巡视、休息</p><h3>酉时-戌时（17-21点）</h3><p>晚宴、处理紧急事务</p><h3>亥时（21-23点）</h3><p>批阅奏折、就寝</p></div>
+          <div class="slide-number">2 / 4</div>
+        </section>
+      
+
+        <section class="slide">
+          <h2>核心挑战</h2>
+          <div class="content"><ul><li><strong>平衡术</strong>：四大派系的权力制衡</li><li><strong>危机应对</strong>：随机事件的快速决策</li><li><strong>长远规划</strong>：当前利益vs长期发展</li><li><strong>人性考验</strong>：亲情、友情、权力的抉择</li></ul></div>
+          <div class="slide-number">3 / 4</div>
+        </section>
+      
+
+        <section class="slide">
+          <h2>创新点</h2>
+          <div class="content"><h3>1. 真实历史事件改编</h3><p>基于真实历史案例设计剧情</p><h3>2. 多维度评价体系</h3><p>不只看结果，更看过程</p><h3>3. 动态难度调整</h3><p>根据玩家表现调整挑战</p></div>
+          <div class="slide-number">4 / 4</div>
+        </section>
+      
+
+  <div class="controls">
+    <button id="prev">← 上一页</button>
+    <button id="next">下一页 →</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const prevBtn = document.getElementById('prev');
+    const nextBtn = document.getElementById('next');
+
+    function showSlide(n) {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (n + slides.length) % slides.length;
+      slides[currentSlide].classList.add('active');
+      
+      prevBtn.disabled = currentSlide === 0;
+      nextBtn.disabled = currentSlide === slides.length - 1;
+    }
+
+    prevBtn.addEventListener('click', () => showSlide(currentSlide - 1));
+    nextBtn.addEventListener('click', () => showSlide(currentSlide + 1));
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') showSlide(currentSlide - 1);
+      if (e.key === 'ArrowRight') showSlide(currentSlide + 1);
+    });
+  </script>
+</body>
+</html>
