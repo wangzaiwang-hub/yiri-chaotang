@@ -15,6 +15,7 @@ import disagreeImage from '../recourse/disagree.png';
 import thinkingGif from '../recourse/thinking.gif';
 import ideaGif from '../recourse/idea.gif';
 import shengzhiImage from '../recourse/shengzhi.png';
+import gongnvImage from '../recourse/gongnv.png';
 
 export default function Home() {
   const { user, token } = useAuthStore();
@@ -59,9 +60,213 @@ export default function Home() {
   const [selectedGender, setSelectedGender] = useState<'male' | 'female'>('male');
   const [isSubmittingGender, setIsSubmittingGender] = useState(false);
   
+  // 重生转世下拉列表状态
+  const [showCourtDropdown, setShowCourtDropdown] = useState(false);
+  
+  // 召唤分身相关状态
+  const [showSummonModal, setShowSummonModal] = useState(false);
+  const [availableBots, setAvailableBots] = useState<any[]>([]);
+  const [isSummoning, setIsSummoning] = useState(false);
+  
   // 音频播放相关
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioReady, setAudioReady] = useState(false); // 音频已准备好但未播放
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false); // 正在生成音频
+  const audioEndPromiseRef = useRef<((value: void) => void) | null>(null); // 用于等待音频结束
+  
+  // 手动播放音频
+  const manualPlayAudio = async () => {
+    if (audioRef.current) {
+      try {
+        await audioRef.current.play();
+        console.log('🔊 手动播放成功');
+        setIsPlayingAudio(true);
+        setAudioReady(false);
+        showToast('正在播放语音...', 'success');
+      } catch (error) {
+        console.error('🔊 手动播放失败:', error);
+        showToast('播放失败', 'error');
+      }
+    }
+  };
+  
+  // 等待音频播放完成
+  const waitForAudioEnd = (): Promise<void> => {
+    return new Promise((resolve) => {
+      const audio = audioRef.current;
+      
+      console.log('🎵 开始等待音频播放完成', { 
+        hasAudio: !!audio,
+        paused: audio?.paused,
+        ended: audio?.ended,
+        currentTime: audio?.currentTime,
+        duration: audio?.duration,
+        isPlayingAudio, 
+        isGeneratingAudio, 
+        audioReady
+      });
+      
+      // 如果已经有 resolve 在等待，先清除
+      if (audioEndPromiseRef.current) {
+        console.log('⚠️ 已有等待中的 Promise，先清除');
+        audioEndPromiseRef.current();
+      }
+      
+      // 检查音频元素状态
+      if (!audio || audio.ended || audio.paused) {
+        // 如果没有音频或已结束，立即 resolve
+        console.log('🎵 没有音频或已结束，立即继续');
+        resolve();
+        return;
+      }
+      
+      // 保存 resolve 函数，在音频结束时调用
+      audioEndPromiseRef.current = resolve;
+      console.log('🎵 已保存 resolve 函数，等待音频结束事件');
+      
+      // 超时保护：20 秒后自动 resolve
+      setTimeout(() => {
+        if (audioEndPromiseRef.current === resolve) {
+          console.log('⏰ 等待音频超时（20秒），强制继续流程');
+          audioEndPromiseRef.current();
+          audioEndPromiseRef.current = null;
+        }
+      }, 20000);
+    });
+  };
+  
+  // 开始播放 TTS（生成并开始播放，返回 Promise 在真正播放时 resolve）
+  const startPlayTTS = async (text: string, userId: string): Promise<boolean> => {
+    return new Promise(async (resolve) => {
+      try {
+        console.log('🔊 开始生成 TTS 语音...', { textLength: text.length, userId });
+        setIsGeneratingAudio(true);
+        setIsPlayingAudio(false);
+        setAudioReady(false);
+        
+        // 清理 Markdown 格式和工具调用标记
+        const cleanText = cleanContent(text);
+        console.log('🔊 清理后的文本:', cleanText.substring(0, 100) + '...');
+        
+        // 调用 TTS API
+        const response = await ttsAPI.generate(cleanText, userId);
+        console.log('🔊 TTS API 响应:', JSON.stringify(response.data, null, 2));
+        
+        setIsGeneratingAudio(false);
+        
+        if (response.data?.data?.url) {
+          const audioUrl = response.data.data.url;
+          console.log('🔊 音频 URL:', audioUrl);
+          
+          // 创建音频元素并播放
+          const audio = new Audio();
+          audioRef.current = audio;
+          
+          // 设置音频属性
+          audio.crossOrigin = 'anonymous';
+          audio.preload = 'auto';
+          audio.volume = 1.0;
+          
+          audio.onloadstart = () => {
+            console.log('🔊 开始加载音频...');
+          };
+          
+          audio.oncanplay = () => {
+            console.log('🔊 音频可以播放了');
+          };
+          
+          // 当音频真正开始播放时，resolve Promise
+          audio.onplay = () => {
+            console.log('🔊 音频开始播放');
+            setIsPlayingAudio(true);
+            resolve(true); // 播放成功，resolve
+          };
+          
+          audio.onended = () => {
+            console.log('🔊 音频播放完成');
+            setIsPlayingAudio(false);
+            setAudioReady(false);
+            
+            // 调用等待的 resolve
+            if (audioEndPromiseRef.current) {
+              audioEndPromiseRef.current();
+              audioEndPromiseRef.current = null;
+            }
+          };
+          
+          audio.onerror = (e) => {
+            console.error('🔊 音频播放失败:', e);
+            setIsPlayingAudio(false);
+            setAudioReady(false);
+            showToast('语音播放失败', 'error');
+            
+            // 调用等待的 resolve
+            if (audioEndPromiseRef.current) {
+              audioEndPromiseRef.current();
+              audioEndPromiseRef.current = null;
+            }
+            
+            resolve(false); // 播放失败
+          };
+          
+          // 设置音频源
+          audio.src = audioUrl;
+          
+          // 尝试播放
+          try {
+            const playPromise = audio.play();
+            console.log('🔊 播放命令已发送');
+            
+            await playPromise;
+            console.log('🔊 play() Promise 完成');
+            // 不在这里 resolve，等待 onplay 事件
+          } catch (playError: any) {
+            console.error('🔊 播放被阻止:', playError);
+            
+            if (playError.name === 'NotAllowedError') {
+              console.log('🔊 浏览器阻止了自动播放，显示手动播放按钮');
+              setIsPlayingAudio(false);
+              setAudioReady(true);
+              showToast('点击播放按钮收听语音', 'error');
+              
+              // 自动播放被阻止，调用等待的 resolve
+              if (audioEndPromiseRef.current) {
+                setTimeout(() => {
+                  if (audioEndPromiseRef.current) {
+                    audioEndPromiseRef.current();
+                    audioEndPromiseRef.current = null;
+                  }
+                }, 3000);
+              }
+              
+              resolve(false); // 播放被阻止
+            } else {
+              throw playError;
+            }
+          }
+        } else {
+          console.warn('🔊 TTS API 未返回音频 URL');
+          setIsPlayingAudio(false);
+          setAudioReady(false);
+          showToast('语音生成失败', 'error');
+          resolve(false);
+        }
+      } catch (error: any) {
+        console.error('🔊 TTS 生成失败:', error);
+        console.error('🔊 错误详情:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status
+        });
+        setIsGeneratingAudio(false);
+        setIsPlayingAudio(false);
+        setAudioReady(false);
+        showToast('语音生成失败', 'error');
+        resolve(false);
+      }
+    });
+  };
   
   // WebSocket 引用
   const wsRef = useRef<WebSocket | null>(null);
@@ -279,50 +484,6 @@ export default function Home() {
   };
   
   // TTS 播放函数
-  const playTTS = async (text: string, userId: string) => {
-    try {
-      console.log('🔊 开始生成 TTS 语音...', { textLength: text.length, userId });
-      setIsPlayingAudio(true);
-      
-      // 清理 Markdown 格式和工具调用标记
-      const cleanText = cleanContent(text);
-      console.log('🔊 清理后的文本:', cleanText.substring(0, 100) + '...');
-      
-      // 调用 TTS API
-      const response = await ttsAPI.generate(cleanText, userId);
-      console.log('🔊 TTS API 响应:', response.data);
-      
-      if (response.data?.data?.url) {
-        console.log('🔊 音频 URL:', response.data.data.url);
-        // 创建音频元素并播放
-        const audio = new Audio(response.data.data.url);
-        audioRef.current = audio;
-        
-        audio.onended = () => {
-          console.log('🔊 音频播放完成');
-          setIsPlayingAudio(false);
-        };
-        
-        audio.onerror = (e) => {
-          console.error('🔊 音频播放失败:', e);
-          setIsPlayingAudio(false);
-          showToast('语音播放失败', 'error');
-        };
-        
-        await audio.play();
-        console.log('🔊 开始播放音频');
-        showToast('正在播放语音...', 'success');
-      } else {
-        console.warn('🔊 TTS API 未返回音频 URL');
-        setIsPlayingAudio(false);
-      }
-    } catch (error) {
-      console.error('🔊 TTS 生成失败:', error);
-      setIsPlayingAudio(false);
-      showToast('语音生成失败', 'error');
-    }
-  };
-
   const { data: courts, refetch: refetchCourts } = useQuery({
     queryKey: ['courts', user?.id],
     queryFn: () => courtAPI.list(user!.id),
@@ -358,10 +519,8 @@ export default function Home() {
   useEffect(() => {
     if (!currentCourt || !user) return;
 
-    // 连接 WebSocket - 使用相对路径，通过 Vite 代理
-    // Vite 会将 /ws 代理到后端的 WebSocket 服务器
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    // 直接连接到后端 WebSocket
+    const wsUrl = 'wss://backend-production-a216.up.railway.app/ws';
     
     const websocket = new WebSocket(wsUrl);
     wsRef.current = websocket;
@@ -583,41 +742,40 @@ export default function Home() {
         conversation_history: newTask.conversation_history
       }]);
       
-      // 如果当前不在 waiting_ai 状态，先显示 thinking
-      if (animationPhase !== 'waiting_ai') {
-        console.log('🤔 从头开始：显示 thinking');
-        setThinkingState('thinking');
-        setAnimationPhase('waiting_ai');
-        
-        // 等待 1.5 秒后切换到 idea
-        setTimeout(() => {
-          console.log('💡 切换到 idea 动画');
-          setThinkingState('idea');
-          setAnimationPhase('ai_ready');
-          
-          // 显示 idea 1 秒后，开始显示气泡
-          setTimeout(() => {
-            showBubbleWithTyping(newTask);
-          }, 1000);
-        }, 1500);
-      } else {
-        // 已经在 waiting_ai 状态（准奏/驳回后），直接切换到 idea
-        console.log('💡 已在 waiting_ai，直接切换到 idea');
-        setThinkingState('idea');
-        setAnimationPhase('ai_ready');
-        
-        // 显示 idea 1 秒后，开始显示气泡
-        setTimeout(() => {
-          showBubbleWithTyping(newTask);
-        }, 1000);
-      }
+      // 直接开始显示气泡和播放语音（函数内部会处理 thinking/idea 动画）
+      showBubbleWithTyping(newTask);
       
       return; // 处理完回复就返回
     }
     
-    // 显示气泡并打字的函数
-    function showBubbleWithTyping(task: any) {
-      console.log('💬 开始显示气泡');
+    // 显示气泡并打字的函数 - 先生成语音，再同步打字
+    async function showBubbleWithTyping(task: any) {
+      console.log('💬 准备显示气泡和播放语音');
+      
+      // 如果是皇帝视角，先生成语音
+      if (isEmperor && task.assignee_id) {
+        // 保持 thinking 动画，开始生成语音
+        console.log('🤔 保持 thinking，开始生成语音');
+        setThinkingState('thinking');
+        setAnimationPhase('waiting_ai');
+        
+        // 生成并开始播放语音（会在 onplay 时 resolve）
+        const audioStarted = await startPlayTTS(task.result, task.assignee_id);
+        
+        if (!audioStarted) {
+          console.log('⚠️ 语音生成失败或被阻止');
+          // 失败时显示 idea 1 秒再显示文字
+          setThinkingState('idea');
+          setAnimationPhase('ai_ready');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } else {
+          console.log('✅ 语音已开始播放，立即显示气泡');
+          // 成功时立即显示气泡（不需要 idea 动画）
+        }
+      }
+      
+      // 显示气泡并开始打字
+      console.log('💬 开始显示气泡和打字');
       setThinkingState('none');
       setAnimationPhase('minister_bubble');
       setBubbleVisible(true);
@@ -636,13 +794,19 @@ export default function Home() {
           setIsTyping(false);
           console.log('✅ 气泡打字完成');
           
-          // 打字完成后，播放语音（只在皇帝视角）
-          if (isEmperor && task.assignee_id) {
-            playTTS(task.result, task.assignee_id);
-          }
-          
-          // 打字完成后 3 秒淡出气泡
-          setTimeout(() => {
+          // 打字完成后的处理
+          const handleAfterTyping = async () => {
+            if (isEmperor && task.assignee_id) {
+              // 皇帝视角：等待语音播放完成
+              console.log('🎵 打字完成，等待语音播放完成');
+              await waitForAudioEnd();
+              console.log('🎵 语音播放完成');
+            } else {
+              // 大臣视角：等待 3 秒
+              await new Promise(resolve => setTimeout(resolve, 3000));
+            }
+            
+            // 淡出气泡
             setBubbleVisible(false);
             // 气泡淡出后再等 1 秒
             setTimeout(() => {
@@ -653,7 +817,9 @@ export default function Home() {
               setAnimationPhase('done');
               console.log('✅ 动画流程完成');
             }, 1000);
-          }, 3000);
+          };
+          
+          handleAfterTyping();
         }
       }, 50);
     }
@@ -814,7 +980,7 @@ export default function Home() {
     
     setIsSubmittingGender(true);
     try {
-      await fetch(`/api/users/court-member/${currentCourt.id}/${user.id}/gender`, {
+      await fetch(`https://backend-production-a216.up.railway.app/api/users/court-member/${currentCourt.id}/${user.id}/gender`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -868,6 +1034,45 @@ export default function Home() {
     const link = `${window.location.origin}/join/${currentCourt?.id}`;
     setInviteLink(link);
     setShowInviteModal(true);
+  };
+
+  // 打开召唤分身弹窗
+  const handleOpenSummonModal = async () => {
+    if (!currentCourt?.id || !user?.id) return;
+    
+    try {
+      const response = await courtAPI.getAvailableBots(currentCourt.id, user.id);
+      setAvailableBots(response.data.data || []);
+      setShowSummonModal(true);
+    } catch (error) {
+      console.error('获取可用人机列表失败:', error);
+      showToast('获取分身列表失败', 'error');
+    }
+  };
+
+  // 召唤分身
+  const handleSummonBot = async (botUserId: string, botNickname: string) => {
+    if (!currentCourt?.id) return;
+    
+    setIsSummoning(true);
+    try {
+      await courtAPI.summonBot(currentCourt.id, botUserId);
+      showToast(`已召唤 ${botNickname} 分身入朝`);
+      setShowSummonModal(false);
+      // 刷新朝堂成员列表
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (error: any) {
+      console.error('召唤分身失败:', error);
+      if (error.response?.data?.error?.includes('duplicate')) {
+        showToast('该分身已在朝堂中', 'error');
+      } else {
+        showToast('召唤失败，请重试', 'error');
+      }
+    } finally {
+      setIsSummoning(false);
+    }
   };
 
   const copyInviteLink = async () => {
@@ -1212,37 +1417,25 @@ export default function Home() {
     >
       {/* 左上角按钮 - 邀请好友和退出 */}
       <div className="absolute top-6 left-6 flex flex-col gap-3 z-10">
-        {/* 朝堂切换 - 如果有多个朝堂 */}
-        {courts?.data.data && courts.data.data.length > 1 && (
-          <select
-            value={currentCourt?.id || ''}
-            onChange={(e) => {
-              const newCourtId = e.target.value;
-              setCurrentCourtId(newCourtId);
-              localStorage.setItem('currentCourtId', newCourtId);
-              window.location.reload();
-            }}
-            className="bg-white/90 border border-amber-200 text-amber-900 px-5 py-2.5 rounded-2xl font-medium shadow-md text-base cursor-pointer hover:bg-white hover:shadow-lg transition-all text-chinese-elegant animate-slideInLeft"
-          >
-            {courts.data.data.map((court: any) => (
-              <option key={court.id} value={court.id}>
-                {court.name}
-              </option>
-            ))}
-          </select>
-        )}
-        
         <button
           onClick={handleInvite}
-          className="bg-white/90 hover:bg-white text-amber-900 px-5 py-2.5 rounded-2xl font-medium shadow-md hover:shadow-lg transition-all border border-amber-200 btn-imperial text-chinese-elegant animate-slideInLeft"
+          className="bg-white/80 backdrop-blur-sm hover:bg-white/90 text-amber-900 px-5 py-2 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all border-2 border-amber-400 text-chinese-elegant text-base animate-slideInLeft"
           style={{ animationDelay: '0.1s' }}
         >
           招贤纳士
         </button>
         
         <button
+          onClick={handleOpenSummonModal}
+          className="bg-white/80 backdrop-blur-sm hover:bg-white/90 text-purple-700 px-5 py-2 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all border-2 border-purple-400 text-chinese-elegant text-base animate-slideInLeft"
+          style={{ animationDelay: '0.15s' }}
+        >
+          召唤分身
+        </button>
+        
+        <button
           onClick={() => setShowFilesModal(true)}
-          className="bg-white/90 hover:bg-white text-amber-900 px-5 py-2.5 rounded-2xl font-medium shadow-md hover:shadow-lg transition-all border border-amber-200 btn-imperial text-chinese-elegant animate-slideInLeft"
+          className="bg-white/80 backdrop-blur-sm hover:bg-white/90 text-amber-900 px-5 py-2 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all border-2 border-amber-400 text-chinese-elegant text-base animate-slideInLeft"
           style={{ animationDelay: '0.2s' }}
         >
           档案阁
@@ -1251,12 +1444,66 @@ export default function Home() {
         {/* 退出按钮 - 皇帝显示"退位让贤"，大臣显示"告老还乡" */}
         <button
           onClick={() => setShowExitConfirm(true)}
-          className="bg-white/90 hover:bg-white text-red-600 px-5 py-2.5 rounded-2xl font-medium shadow-md hover:shadow-lg transition-all border border-red-200 btn-imperial text-chinese-elegant animate-slideInLeft"
+          className="bg-white/80 backdrop-blur-sm hover:bg-white/90 text-red-600 px-5 py-2 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all border-2 border-amber-400 text-chinese-elegant text-base animate-slideInLeft"
           style={{ animationDelay: '0.3s' }}
         >
           {isEmperor ? '退位让贤' : '告老还乡'}
         </button>
       </div>
+
+      {/* 右上角 - 重生转世 */}
+      {courts?.data.data && courts.data.data.length > 1 && (
+        <div className="absolute top-6 right-6 z-10">
+          <div className="relative">
+            {/* 重生转世按钮 - 白色半透明背景 */}
+            <button
+              onClick={() => setShowCourtDropdown(!showCourtDropdown)}
+              className="bg-white/80 backdrop-blur-sm hover:bg-white/90 text-amber-900 px-5 py-2 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all border-2 border-amber-400 text-chinese-elegant text-base animate-slideInRight flex items-center gap-2 min-w-[160px] justify-between"
+            >
+              <span>重生转世</span>
+              <svg 
+                className={`w-4 h-4 transition-transform duration-300 ${showCourtDropdown ? 'rotate-180' : ''}`}
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {/* 展开的朝堂列表 */}
+            {showCourtDropdown && (
+              <div className="absolute top-full mt-2 right-0 bg-white/90 backdrop-blur-sm border-2 border-amber-400 rounded-2xl shadow-xl overflow-hidden animate-scaleIn min-w-[160px]">
+                {courts.data.data.map((court: any, index: number) => (
+                  <button
+                    key={court.id}
+                    onClick={() => {
+                      setCurrentCourtId(court.id);
+                      localStorage.setItem('currentCourtId', court.id);
+                      setShowCourtDropdown(false);
+                      window.location.reload();
+                    }}
+                    className={`w-full px-4 py-2 text-left font-bold transition-all text-chinese-elegant text-sm ${
+                      court.id === currentCourt?.id
+                        ? 'bg-amber-400/30 text-amber-900'
+                        : 'text-amber-900 hover:bg-amber-100/50'
+                    } ${index !== courts.data.data.length - 1 ? 'border-b border-amber-200' : ''}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {court.id === currentCourt?.id && (
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      <span>{court.name}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 左下角怨气值 */}
       <div className="absolute bottom-6 left-6 bg-white/90 rounded-2xl p-6 shadow-lg z-10 min-w-[200px] border border-amber-200 animate-fadeInUp">
@@ -1375,13 +1622,39 @@ export default function Home() {
                       className={`absolute -top-32 left-1/2 transform -translate-x-1/2 bg-cyan-400 rounded-3xl shadow-lg w-80 z-30 transition-opacity duration-1000 ${bubbleVisible ? 'opacity-100' : 'opacity-0'}`}
                       style={{ maxHeight: '120px' }}
                     >
+                      {/* 音频生成中指示器 */}
+                      {isGeneratingAudio && isEmperor && (
+                        <div className="absolute -top-8 right-2 bg-yellow-500 text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg flex items-center gap-1 animate-pulse">
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          生成中
+                        </div>
+                      )}
+                      
                       {/* 音频播放指示器 */}
-                      {isPlayingAudio && isEmperor && (
+                      {isPlayingAudio && isEmperor && !isGeneratingAudio && (
                         <div className="absolute -top-8 right-2 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg flex items-center gap-1 animate-pulse">
                           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z" />
                           </svg>
                           播放中
+                        </div>
+                      )}
+                      
+                      {/* 手动播放按钮 - 当自动播放被阻止时显示 */}
+                      {audioReady && isEmperor && !isPlayingAudio && !isGeneratingAudio && (
+                        <div className="absolute -top-8 right-2 z-40">
+                          <button
+                            onClick={manualPlayAudio}
+                            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-medium shadow-lg flex items-center gap-1 transition-all animate-bounce"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8,5.14V19.14L19,12.14L8,5.14Z" />
+                            </svg>
+                            点击播放
+                          </button>
                         </div>
                       )}
                       
@@ -1663,6 +1936,33 @@ export default function Home() {
                 className="w-32 h-32 object-contain cursor-pointer transition-transform duration-300 hover:scale-110 drop-shadow-2xl"
               />
             </div>
+          </div>
+          
+          {/* 宫女提示 - 从右边滑入 */}
+          <div className="fixed bottom-20 right-8 z-[51] flex items-center gap-4 animate-slideInRight">
+            {/* 宫女说话气泡 */}
+            <div className="relative bg-pink-100 rounded-3xl p-4 shadow-xl border-2 border-pink-300 max-w-xs animate-scaleIn" style={{ animationDelay: '0.3s' }}>
+              <p className="text-pink-900 text-sm text-chinese-elegant leading-relaxed">
+                <span className="font-bold text-pink-700">陛下，</span>
+                <br />
+                <span className="text-amber-700">「结」</span>可结束此事，
+                <br />
+                <span className="text-green-700">「准」</span>可准奏执行，
+                <br />
+                <span className="text-red-700">「驳」</span>可驳回重做。
+              </p>
+              {/* 气泡尾巴 - 简单三角形指向右边 */}
+              <div className="absolute right-0 top-1/2 transform translate-x-full -translate-y-1/2 -ml-1">
+                <div className="w-0 h-0 border-l-[16px] border-l-pink-100 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent"></div>
+              </div>
+            </div>
+            
+            {/* 宫女图片 */}
+            <img
+              src={gongnvImage}
+              alt="宫女"
+              className="w-32 h-32 object-contain drop-shadow-2xl"
+            />
           </div>
         </>
       )}
@@ -1985,60 +2285,143 @@ export default function Home() {
         </div>
       )}
 
+      {/* 召唤分身弹窗 */}
+      {showSummonModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl p-8 max-w-3xl w-full shadow-2xl border-4 border-purple-400 animate-scaleIn">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold text-purple-900 text-chinese-title text-gold-gradient">
+                召唤分身
+              </h2>
+              <button
+                onClick={() => setShowSummonModal(false)}
+                className="w-10 h-10 rounded-full bg-red-600 hover:bg-red-700 text-white text-2xl flex items-center justify-center transition-all hover:scale-110 shadow-lg"
+              >
+                ×
+              </button>
+            </div>
+            
+            <p className="text-purple-700 mb-6 text-chinese-elegant text-center">
+              选择一个 SecondMe 虚拟分身加入你的朝堂，他们将随机分配到三省六部
+            </p>
+
+            {availableBots.length > 0 ? (
+              <div className="grid grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
+                {availableBots.map((bot: any) => (
+                  <button
+                    key={bot.id}
+                    onClick={() => handleSummonBot(bot.id, bot.nickname)}
+                    disabled={isSummoning}
+                    className="p-6 rounded-2xl border-2 border-purple-300 bg-white hover:bg-purple-50 hover:border-purple-500 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-xl"
+                  >
+                    <div className="flex flex-col items-center">
+                      {/* 头像 */}
+                      {bot.avatar_url ? (
+                        <img
+                          src={bot.avatar_url}
+                          alt={bot.nickname}
+                          className="w-20 h-20 rounded-full mb-3 object-cover border-2 border-purple-300"
+                        />
+                      ) : (
+                        <div className="w-20 h-20 rounded-full mb-3 bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-2xl font-bold">
+                          {bot.nickname?.charAt(0) || '?'}
+                        </div>
+                      )}
+                      
+                      {/* 昵称 */}
+                      <div className="font-bold text-purple-900 text-lg text-chinese-title mb-1">
+                        {bot.nickname || '未命名'}
+                      </div>
+                      
+                      {/* 提示文字 */}
+                      <div className="text-xs text-purple-600 text-chinese-elegant">
+                        点击召唤
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">🤷</div>
+                <p className="text-purple-700 text-lg text-chinese-elegant">
+                  暂无可召唤的分身
+                </p>
+                <p className="text-purple-500 text-sm text-chinese-elegant mt-2">
+                  所有用户都已在朝堂中
+                </p>
+              </div>
+            )}
+
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => setShowSummonModal(false)}
+                className="px-8 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-xl font-bold transition-all text-chinese-elegant"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 性别选择弹窗 */}
       {showGenderModal && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[200]">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full animate-scaleIn">
-            <h1 className="text-4xl font-bold text-amber-900 mb-3 text-center text-chinese-title text-gold-gradient">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-3xl w-full animate-scaleIn">
+            <h1 className="text-3xl font-bold text-amber-600 mb-2 text-center text-chinese-title">
               选择你的身份
             </h1>
-            <p className="text-gray-600 mb-8 text-lg text-center text-chinese-elegant">
+            <p className="text-gray-600 mb-6 text-sm text-center text-chinese-elegant">
               选择你在朝堂中的形象
             </p>
 
-            <div className="grid grid-cols-2 gap-8 mb-8">
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              {/* 皇上选项 - 金黄色边框 */}
               <button
                 onClick={() => setSelectedGender('male')}
-                className={`p-8 rounded-2xl border-4 transition-all transform hover:scale-105 btn-imperial animate-fadeInUp ${
+                className={`p-6 rounded-3xl border-4 transition-all transform hover:scale-105 ${
                   selectedGender === 'male'
-                    ? 'border-amber-600 bg-amber-50 shadow-xl animate-glow'
-                    : 'border-gray-200 hover:border-amber-300 bg-white'
+                    ? 'border-amber-400 bg-amber-50/30 shadow-xl'
+                    : 'border-amber-400 bg-white hover:bg-amber-50/20 shadow-md'
                 }`}
-                style={{ animationDelay: '0.1s' }}
               >
-                <img 
-                  src={kingImage} 
-                  alt="皇上" 
-                  className="w-48 h-48 mx-auto mb-4 object-contain animate-float"
-                />
-                <div className="font-bold text-2xl text-amber-900 text-chinese-title">皇上</div>
-                <div className="text-sm text-gray-600 mt-2 text-chinese-elegant">男性形象</div>
+                <div className="flex flex-col items-center">
+                  <img 
+                    src={kingImage} 
+                    alt="皇上" 
+                    className="w-48 h-48 object-contain mb-3"
+                  />
+                  <div className="font-bold text-xl text-amber-900 text-chinese-title mb-1">皇上</div>
+                  <div className="text-xs text-gray-500 text-chinese-elegant">男性形象</div>
+                </div>
               </button>
 
+              {/* 皇后选项 - 粉色边框 */}
               <button
                 onClick={() => setSelectedGender('female')}
-                className={`p-8 rounded-2xl border-4 transition-all transform hover:scale-105 btn-imperial animate-fadeInUp ${
+                className={`p-6 rounded-3xl border-4 transition-all transform hover:scale-105 ${
                   selectedGender === 'female'
-                    ? 'border-pink-600 bg-pink-50 shadow-xl animate-glow'
-                    : 'border-gray-200 hover:border-pink-300 bg-white'
+                    ? 'border-pink-500 bg-pink-50 shadow-xl'
+                    : 'border-pink-500 bg-white hover:bg-pink-50/30 shadow-md'
                 }`}
-                style={{ animationDelay: '0.2s' }}
               >
-                <img 
-                  src={queenImage} 
-                  alt="皇后" 
-                  className="w-48 h-48 mx-auto mb-4 object-contain animate-float"
-                  style={{ animationDelay: '0.5s' }}
-                />
-                <div className="font-bold text-2xl text-pink-900 text-chinese-title">皇后</div>
-                <div className="text-sm text-gray-600 mt-2 text-chinese-elegant">女性形象</div>
+                <div className="flex flex-col items-center">
+                  <img 
+                    src={queenImage} 
+                    alt="皇后" 
+                    className="w-48 h-48 object-contain mb-3"
+                  />
+                  <div className="font-bold text-xl text-pink-900 text-chinese-title mb-1">皇后</div>
+                  <div className="text-xs text-gray-500 text-chinese-elegant">女性形象</div>
+                </div>
               </button>
             </div>
 
             <button
               onClick={handleGenderSubmit}
               disabled={isSubmittingGender}
-              className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold py-4 px-6 rounded-xl transition-all transform hover:scale-105 shadow-lg disabled:opacity-50 text-lg btn-imperial text-chinese-elegant animate-pulse-glow"
+              className="w-full bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 text-white font-bold py-3 px-6 rounded-2xl transition-all transform hover:scale-105 shadow-lg disabled:opacity-50 text-lg text-chinese-elegant"
             >
               {isSubmittingGender ? '保存中...' : '钦此'}
             </button>

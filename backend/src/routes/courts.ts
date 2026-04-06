@@ -280,4 +280,77 @@ router.post('/:id/leave', async (req, res) => {
   }
 });
 
+/**
+ * 获取可用的人机列表（其他用户的虚拟分身）
+ */
+router.get('/:id/available-bots', async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // 获取当前朝堂的所有成员
+    const { data: currentMembers } = await supabase
+      .from('court_members')
+      .select('user_id')
+      .eq('court_id', id);
+    
+    const memberIds = currentMembers?.map(m => m.user_id) || [];
+    
+    // 获取所有用户，排除当前朝堂的成员
+    const { data: availableUsers } = await supabase
+      .from('users')
+      .select('id, nickname, avatar_url')
+      .not('id', 'in', `(${memberIds.join(',')})`)
+      .limit(20); // 最多显示 20 个
+    
+    res.json({
+      code: 0,
+      data: availableUsers || []
+    });
+  } catch (error) {
+    logger.error('Get available bots error:', error);
+    res.status(500).json({ error: 'Failed to get available bots' });
+  }
+});
+
+/**
+ * 召唤分身（邀请人机加入，随机分配部门）
+ */
+router.post('/:id/summon-bot', async (req, res) => {
+  const { id } = req.params;
+  const { user_id } = req.body; // 要召唤的用户ID
+  
+  try {
+    // 随机选择一个部门
+    const departments = ['zhongshu', 'menxia', 'shangshu', 'hubu', 'libu', 'bingbu', 'xingbu', 'gongbu', 'libu_hr'];
+    const randomDepartment = departments[Math.floor(Math.random() * departments.length)];
+    
+    // 添加为朝堂成员
+    const { data: member, error } = await supabase
+      .from('court_members')
+      .insert({
+        court_id: id,
+        user_id: user_id,
+        role: 'minister',
+        department: randomDepartment,
+        grudge_value: 0,
+        gender: 'male' // 默认男性
+      })
+      .select(`
+        *,
+        user:users(*)
+      `)
+      .single();
+    
+    if (error) throw error;
+    
+    res.json({
+      code: 0,
+      data: member
+    });
+  } catch (error) {
+    logger.error('Summon bot error:', error);
+    res.status(500).json({ error: 'Failed to summon bot' });
+  }
+});
+
 export default router;

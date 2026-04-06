@@ -36,7 +36,7 @@ export default api;
 
 export const authAPI = {
   login: () => {
-    const loginUrl = `${API_BASE_URL}/api/auth/secondme/login?frontend_url=${encodeURIComponent(window.location.origin)}`;
+    const loginUrl = `https://backend-production-a216.up.railway.app/api/auth/secondme/login?frontend_url=${encodeURIComponent(window.location.origin)}`;
     window.location.href = loginUrl;
   },
   getMe: () => api.get('/auth/me'),
@@ -55,6 +55,10 @@ export const courtAPI = {
     api.delete(`/courts/${courtId}`, { data: { user_id: userId } }),
   leave: (courtId: string, userId: string) =>
     api.post(`/courts/${courtId}/leave`, { user_id: userId }),
+  getAvailableBots: (courtId: string, currentUserId: string) =>
+    api.get(`/courts/${courtId}/available-bots?current_user_id=${currentUserId}`),
+  summonBot: (courtId: string, userId: string) =>
+    api.post(`/courts/${courtId}/summon-bot`, { user_id: userId }),
 };
 
 export const taskAPI = {
