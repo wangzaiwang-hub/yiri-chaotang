@@ -90,6 +90,13 @@ export const taskAPI = {
     api.post(`/tasks/${id}/approve`, { feedback: feedback || '准奏' }),
   rejectTask: (id: string, reason: string) =>
     api.post(`/tasks/${id}/reject`, { feedback: reason }),
+  punishMinister: (courtId: string, ministerId: string, emperorId: string, punishmentTask: string) =>
+    api.post('/tasks/punish-minister', { 
+      court_id: courtId, 
+      minister_id: ministerId, 
+      emperor_id: emperorId,
+      punishment_task: punishmentTask 
+    }),
 };
 
 export const grudgeAPI = {
@@ -112,4 +119,36 @@ export const ttsAPI = {
 export const boredAPI = {
   generateMessage: (emperorId: string) =>
     api.post('/tasks/bored-message', { emperor_id: emperorId }),
+};
+
+export const whisperAPI = {
+  send: (courtId: string, fromUserId: string, toUserId: string, message: string) =>
+    api.post('/whispers/send', { 
+      court_id: courtId, 
+      from_user_id: fromUserId, 
+      to_user_id: toUserId,
+      message 
+    }),
+  list: (courtId: string, userId: string) =>
+    api.get(`/whispers?court_id=${courtId}&user_id=${userId}`),
+  markAsRead: (whisperId: string, userId: string, isEmperor: boolean) =>
+    api.post(`/whispers/${whisperId}/read`, { user_id: userId, is_emperor: isEmperor }),
+};
+
+export const territoryAPI = {
+  // 获取疆土拓展数据
+  get: (courtId: string, userId: string) =>
+    api.get(`/territory/${courtId}?user_id=${userId}`),
+  // 更新幸福值
+  updateHappiness: (courtId: string, userId: string, amount: number, eventType: string, eventDescription: string) =>
+    api.post(`/territory/${courtId}/happiness`, { user_id: userId, amount, eventType, eventDescription }),
+  // 解锁新场景
+  unlockScene: (courtId: string, userId: string, sceneId: string) =>
+    api.post(`/territory/${courtId}/unlock-scene`, { user_id: userId, sceneId }),
+  // 切换当前场景
+  switchScene: (courtId: string, userId: string, sceneId: string) =>
+    api.post(`/territory/${courtId}/switch-scene`, { user_id: userId, sceneId }),
+  // 获取所有场景配置
+  getAllScenes: () =>
+    api.get('/territory/scenes/all'),
 };

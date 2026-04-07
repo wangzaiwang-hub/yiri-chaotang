@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
-import { courtAPI, taskAPI, fileAPI, ttsAPI, boredAPI } from '../services/api';
+import { courtAPI, taskAPI, fileAPI, ttsAPI, boredAPI, whisperAPI, territoryAPI } from '../services/api';
 import { useState, useEffect, useRef } from 'react';
 
 // 导入图片资源
@@ -16,6 +16,30 @@ import thinkingGif from '../recourse/thinking.gif';
 import ideaGif from '../recourse/idea.gif';
 import shengzhiImage from '../recourse/shengzhi.png';
 import gongnvImage from '../recourse/gongnv.png';
+import cardBackImage from '../recourse/card_back.png';
+import cardFrontImage from '../recourse/card_front.png';
+import qiuraoGif from '../recourse/qiurao.gif';
+import jiantaoImage from '../recourse/jiantao.png';
+
+// 导入国家场景图片
+import huaxiaScene from '../recourse/Country/huaxia.jpg';
+import dongyingScene from '../recourse/Country/dongying.jpg';
+import gaoliScene from '../recourse/Country/gaoli.jpg';
+import annanScene from '../recourse/Country/annan.jpeg';
+import xianluoScene from '../recourse/Country/xianluo.jpeg';
+import dashiScene from '../recourse/Country/dashi.jpeg';
+
+// 导入百姓状态图片
+import qiongImage from '../recourse/Country/qiong.png';
+import qiangImage from '../recourse/Country/qiang.png';
+import fuImage from '../recourse/Country/fu.png';
+
+// 导入场景卡片图片
+import bgCardBack from '../recourse/Country/bg_card_back.jpg';
+import bgCardFront from '../recourse/Country/bg_card_front.png';
+
+// 导入征战视频
+import conquestVideo from '../recourse/Country/loading.mov';
 
 export default function Home() {
   const { user, token } = useAuthStore();
@@ -44,6 +68,22 @@ export default function Home() {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [selectedTaskForApproval, setSelectedTaskForApproval] = useState<any>(null);
   const [approvalFeedback, setApprovalFeedback] = useState('');
+  const [showPunishModal, setShowPunishModal] = useState(false);
+  const [selectedTaskForPunishment, setSelectedTaskForPunishment] = useState<any>(null);
+  const [punishmentContent, setPunishmentContent] = useState('');
+  const [showPunishmentAnimation, setShowPunishmentAnimation] = useState(false);
+  const [generatedPunishmentText, setGeneratedPunishmentText] = useState('');
+  const [showPunishmentResult, setShowPunishmentResult] = useState(false);
+  
+  // 悄悄话相关状态
+  const [showWhisperModal, setShowWhisperModal] = useState(false);
+  const [whisperTarget, setWhisperTarget] = useState<any>(null);
+  const [whisperMessage, setWhisperMessage] = useState('');
+  const [currentWhisper, setCurrentWhisper] = useState<any>(null);
+  const [displayedWhisperMessage, setDisplayedWhisperMessage] = useState('');
+  const [displayedWhisperReply, setDisplayedWhisperReply] = useState('');
+  const [isWhisperTyping, setIsWhisperTyping] = useState(false);
+  const [whisperPhase, setWhisperPhase] = useState<'input' | 'message_bubble' | 'waiting_reply' | 'reply_bubble' | 'done'>('done');
   
   // 思考状态：'thinking' | 'idea' | 'none'
   const [thinkingState, setThinkingState] = useState<'thinking' | 'idea' | 'none'>('none');
@@ -67,6 +107,28 @@ export default function Home() {
   const [showSummonModal, setShowSummonModal] = useState(false);
   const [availableBots, setAvailableBots] = useState<any[]>([]);
   const [isSummoning, setIsSummoning] = useState(false);
+  
+  // 翻牌动画相关状态
+  const [showCardFlip, setShowCardFlip] = useState(false);
+  const [selectedBot, setSelectedBot] = useState<any>(null);
+  const [isFlipping, setIsFlipping] = useState(false);
+  
+  // 疆土拓展相关状态
+  const [showTerritoryModal, setShowTerritoryModal] = useState(false);
+  const [availableScenes, setAvailableScenes] = useState<any[]>([]);
+  const [showSceneCardFlip, setShowSceneCardFlip] = useState(false);
+  const [selectedScene, setSelectedScene] = useState<any>(null);
+  const [isFlippingScene, setIsFlippingScene] = useState(false);
+  const [currentBackground, setCurrentBackground] = useState<string>('huaxia');
+  
+  // 征战视频相关状态
+  const [showConquestVideo, setShowConquestVideo] = useState(false);
+  const [isConquesting, setIsConquesting] = useState(false);
+  
+  // 幸福值系统
+  const [happiness, setHappiness] = useState<number>(0);
+  const [unlockedScenes, setUnlockedScenes] = useState<string[]>(['default']);
+  const [currentSceneIndex, setCurrentSceneIndex] = useState<number>(0);
   
   // 音频播放相关
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -499,11 +561,11 @@ export default function Home() {
 
   // 当朝堂改变时，保存到 localStorage
   useEffect(() => {
-    if (currentCourt?.id) {
+    if (currentCourt?.id && currentCourt.id !== currentCourtId) {
       localStorage.setItem('currentCourtId', currentCourt.id);
       setCurrentCourtId(currentCourt.id);
     }
-  }, [currentCourt?.id]);
+  }, [currentCourt?.id, currentCourtId]);
 
   const { data: tasksRes, refetch: refetchTasks } = useQuery({
     queryKey: ['tasks', currentCourt?.id],
@@ -972,7 +1034,7 @@ export default function Home() {
     if (needsGenderSelection && currentCourt?.id && !showGenderModal) {
       setShowGenderModal(true);
     }
-  }, [needsGenderSelection, currentCourt?.id]);
+  }, [needsGenderSelection, currentCourt?.id, showGenderModal]);
   
   // 处理性别选择提交
   const handleGenderSubmit = async () => {
@@ -991,10 +1053,8 @@ export default function Home() {
       
       setShowGenderModal(false);
       showToast('性别设置成功！');
-      // 刷新排行榜数据
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      // 刷新朝堂数据，不刷新整个页面
+      await refetchCourts();
     } catch (error) {
       console.error('更新性别失败:', error);
       showToast('更新失败，请重试', 'error');
@@ -1050,29 +1110,275 @@ export default function Home() {
     }
   };
 
-  // 召唤分身
-  const handleSummonBot = async (botUserId: string, botNickname: string) => {
-    if (!currentCourt?.id) return;
+  // 点击卡牌，开始翻牌动画（随机抽取）
+  const handleCardClick = () => {
+    // 从可用的人中随机选择一个
+    const randomIndex = Math.floor(Math.random() * availableBots.length);
+    const randomBot = availableBots[randomIndex];
+    
+    setSelectedBot(randomBot);
+    setShowSummonModal(false);
+    setShowCardFlip(true);
+    
+    // 开始翻牌动画
+    setTimeout(() => {
+      setIsFlipping(true);
+    }, 100);
+  };
+  
+  // 确认召唤
+  const handleConfirmSummon = async () => {
+    if (!selectedBot || !currentCourt?.id) return;
     
     setIsSummoning(true);
     try {
-      await courtAPI.summonBot(currentCourt.id, botUserId);
-      showToast(`已召唤 ${botNickname} 分身入朝`);
-      setShowSummonModal(false);
-      // 刷新朝堂成员列表
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      await courtAPI.summonBot(currentCourt.id, selectedBot.id);
+      showToast(`已招募 ${selectedBot.nickname} 入朝为官`);
+      setShowCardFlip(false);
+      setIsFlipping(false);
+      setSelectedBot(null);
+      // 刷新朝堂成员列表，不刷新整个页面
+      await refetchCourts();
     } catch (error: any) {
-      console.error('召唤分身失败:', error);
+      console.error('招募贤士失败:', error);
       if (error.response?.data?.error?.includes('duplicate')) {
-        showToast('该分身已在朝堂中', 'error');
+        showToast('该贤士已在朝堂中', 'error');
       } else {
-        showToast('召唤失败，请重试', 'error');
+        showToast('招募失败，请重试', 'error');
       }
+      setShowCardFlip(false);
+      setIsFlipping(false);
+      setSelectedBot(null);
     } finally {
       setIsSummoning(false);
     }
+  };
+  
+  // 取消召唤
+  const handleCancelSummon = () => {
+    setShowCardFlip(false);
+    setIsFlipping(false);
+    setSelectedBot(null);
+    setShowSummonModal(true);
+  };
+
+  // 场景数据 - 每个场景需要的幸福值递增
+  const scenes = [
+    { id: 'default', name: '初始', image: bgImage, description: '朝堂初景，万象更新', requiredHappiness: 0 },
+    { id: 'huaxia', name: '华夏', image: huaxiaScene, description: '中原大地，繁华盛世', requiredHappiness: 100 },
+    { id: 'dongying', name: '东瀛', image: dongyingScene, description: '海岛之国，樱花烂漫', requiredHappiness: 200 },
+    { id: 'gaoli', name: '高丽', image: gaoliScene, description: '半岛之邦，文化璀璨', requiredHappiness: 350 },
+    { id: 'annan', name: '安南', image: annanScene, description: '南国风情，物产丰饶', requiredHappiness: 550 },
+    { id: 'xianluo', name: '暹罗', image: xianluoScene, description: '热带王国，佛塔林立', requiredHappiness: 800 },
+    { id: 'dashi', name: '大食', image: dashiScene, description: '西域明珠，商贾云集', requiredHappiness: 1100 },
+  ];
+  
+  // 获取当前场景和下一个场景
+  const currentScene = scenes[currentSceneIndex];
+  const nextScene = currentSceneIndex < scenes.length - 1 ? scenes[currentSceneIndex + 1] : null;
+  
+  // 计算当前场景的进度（0-100）
+  const getCurrentProgress = () => {
+    if (!nextScene) return 100; // 已经是最后一个场景
+    const currentRequired = currentScene.requiredHappiness;
+    const nextRequired = nextScene.requiredHappiness;
+    const range = nextRequired - currentRequired;
+    const progress = ((happiness - currentRequired) / range) * 100;
+    return Math.min(Math.max(progress, 0), 100);
+  };
+  
+  // 获取百姓状态图片
+  const getPeopleImage = () => {
+    const progress = getCurrentProgress();
+    if (progress < 20) return qiongImage;
+    if (progress < 40) return qiangImage;
+    return fuImage;
+  };
+  
+  // 检查是否可以解锁下一个场景
+  const canUnlockNext = getCurrentProgress() >= 100 && nextScene && !unlockedScenes.includes(nextScene.id);
+
+  // 增加幸福值（每次对话）
+  const addHappiness = async () => {
+    if (!currentCourt?.id || !user?.id) {
+      console.warn('⚠️ 无法增加幸福值：缺少 courtId 或 userId');
+      return;
+    }
+    
+    const increment = Math.floor(Math.random() * 11) + 10; // 10-20 随机
+    
+    try {
+      console.log(`💖 正在增加幸福值 +${increment}...`);
+      const response = await territoryAPI.updateHappiness(
+        currentCourt.id,
+        user.id,
+        increment,
+        'task_interaction',
+        '与大臣交互'
+      );
+      
+      setHappiness(response.data.happiness);
+      console.log(`✅ 幸福值更新成功，当前: ${response.data.happiness}`);
+    } catch (error: any) {
+      console.error('❌ 更新幸福值失败:', error);
+      console.error('错误详情:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
+      // 失败时使用本地更新作为降级方案
+      const newHappiness = happiness + increment;
+      setHappiness(newHappiness);
+      console.log(`⚠️ 使用本地降级方案，当前: ${newHappiness}`);
+    }
+  };
+  
+  // 打开疆土拓展弹窗
+  const handleOpenTerritory = () => {
+    // 显示所有场景（包括未解锁的）
+    setAvailableScenes(scenes);
+    setShowTerritoryModal(true);
+  };
+  
+  // 解锁下一个场景（不再直接使用，改为通过征战视频解锁）
+  const handleUnlockNextScene = () => {
+    if (!nextScene) return;
+    
+    setSelectedScene(nextScene);
+    setShowTerritoryModal(false);
+    setShowSceneCardFlip(true);
+    
+    // 开始翻牌动画
+    setTimeout(() => {
+      setIsFlippingScene(true);
+    }, 100);
+  };
+  
+  // 开始征战（播放视频）
+  const handleStartConquest = () => {
+    setShowSceneCardFlip(false);
+    setShowConquestVideo(true);
+    setIsConquesting(true);
+  };
+  
+  // 征战完成（视频播放结束）
+  const handleConquestComplete = async () => {
+    if (!selectedScene || !currentCourt?.id || !user?.id) return;
+    
+    try {
+      // 解锁场景
+      const unlockResponse = await territoryAPI.unlockScene(currentCourt.id, user.id, selectedScene.id);
+      setUnlockedScenes(unlockResponse.data.unlockedScenes);
+      
+      // 切换到新场景
+      await territoryAPI.switchScene(currentCourt.id, user.id, selectedScene.id);
+      setCurrentBackground(selectedScene.id);
+      
+      // 更新当前场景索引
+      const newIndex = scenes.findIndex(s => s.id === selectedScene.id);
+      setCurrentSceneIndex(newIndex);
+      
+      showToast(`${selectedScene.name}已被征服！`);
+    } catch (error) {
+      console.error('征战完成处理失败:', error);
+      showToast('征战失败，请重试', 'error');
+    } finally {
+      // 关闭视频
+      setShowConquestVideo(false);
+      setIsConquesting(false);
+      setIsFlippingScene(false);
+      setSelectedScene(null);
+    }
+  };
+
+  // 点击场景卡牌，开始翻牌动画
+  const handleSceneCardClick = (scene: any) => {
+    setSelectedScene(scene);
+    setShowTerritoryModal(false);
+    setShowSceneCardFlip(true);
+    
+    // 开始翻牌动画
+    setTimeout(() => {
+      setIsFlippingScene(true);
+    }, 100);
+  };
+
+  // 确认切换场景
+  const handleConfirmScene = async () => {
+    if (!selectedScene || !currentCourt?.id || !user?.id) return;
+    
+    try {
+      // 如果是解锁新场景
+      if (!unlockedScenes.includes(selectedScene.id)) {
+        const unlockResponse = await territoryAPI.unlockScene(currentCourt.id, user.id, selectedScene.id);
+        setUnlockedScenes(unlockResponse.data.unlockedScenes);
+        
+        // 更新当前场景索引
+        const newIndex = scenes.findIndex(s => s.id === selectedScene.id);
+        setCurrentSceneIndex(newIndex);
+        
+        showToast(`已解锁${selectedScene.name}！`);
+      } else {
+        showToast(`已切换至${selectedScene.name}场景`);
+      }
+      
+      // 切换场景
+      await territoryAPI.switchScene(currentCourt.id, user.id, selectedScene.id);
+      setCurrentBackground(selectedScene.id);
+    } catch (error) {
+      console.error('切换场景失败:', error);
+      showToast('切换场景失败，请重试', 'error');
+    } finally {
+      setShowSceneCardFlip(false);
+      setIsFlippingScene(false);
+      setSelectedScene(null);
+    }
+  };
+
+  // 取消切换场景
+  const handleCancelScene = () => {
+    setShowSceneCardFlip(false);
+    setIsFlippingScene(false);
+    setSelectedScene(null);
+    setShowTerritoryModal(true);
+  };
+
+  // 从 API 加载疆土拓展数据
+  useEffect(() => {
+    const loadTerritoryData = async () => {
+      if (!currentCourt?.id || !user?.id) return;
+      
+      try {
+        const response = await territoryAPI.get(currentCourt.id, user.id);
+        const data = response.data;
+        
+        setHappiness(data.happiness || 0);
+        setUnlockedScenes(data.unlockedScenes || ['default']);
+        setCurrentBackground(data.currentScene || 'default');
+        
+        // 更新当前场景索引
+        const sceneIndex = scenes.findIndex(s => s.id === data.currentScene);
+        if (sceneIndex >= 0) {
+          setCurrentSceneIndex(sceneIndex);
+        }
+      } catch (error) {
+        console.error('加载疆土拓展数据失败:', error);
+        // 使用默认值
+        setHappiness(0);
+        setUnlockedScenes(['default']);
+        setCurrentBackground('default');
+        setCurrentSceneIndex(0);
+      }
+    };
+    
+    loadTerritoryData();
+  }, [currentCourt?.id, user?.id]);
+
+  // 获取当前背景图片
+  const getCurrentBackgroundImage = () => {
+    const scene = scenes.find(s => s.id === currentBackground);
+    return scene?.image || huaxiaScene;
   };
 
   const copyInviteLink = async () => {
@@ -1150,6 +1456,9 @@ export default function Home() {
         deadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       });
       
+      // 增加幸福值
+      await addHappiness();
+      
       setTaskDescription('');
       setSelectedSlave(null);
       refetchTasks();
@@ -1167,8 +1476,11 @@ export default function Home() {
     try {
       await courtAPI.destroy(currentCourt.id, user!.id);
       showToast('王朝已覆灭');
-      // 刷新页面，回到创建朝堂界面
-      setTimeout(() => window.location.reload(), 1000);
+      // 刷新朝堂列表，不刷新整个页面
+      await refetchCourts();
+      // 清除当前朝堂 ID
+      localStorage.removeItem('currentCourtId');
+      setCurrentCourtId(null);
     } catch (error) {
       console.error('覆灭王朝失败:', error);
       showToast('操作失败，请重试', 'error');
@@ -1179,8 +1491,11 @@ export default function Home() {
     try {
       await courtAPI.leave(currentCourt.id, user!.id);
       showToast('告老还乡成功');
-      // 刷新页面
-      setTimeout(() => window.location.reload(), 1000);
+      // 刷新朝堂列表，不刷新整个页面
+      await refetchCourts();
+      // 清除当前朝堂 ID
+      localStorage.removeItem('currentCourtId');
+      setCurrentCourtId(null);
     } catch (error) {
       console.error('退出朝堂失败:', error);
       showToast('操作失败，请重试', 'error');
@@ -1221,6 +1536,10 @@ export default function Home() {
     
     try {
       await taskAPI.approveTask(selectedTaskForApproval.id, approvalFeedback);
+      
+      // 增加幸福值
+      await addHappiness();
+      
       showToast('已准奏');
       setApprovalFeedback('');
       setSelectedTaskForApproval(null);
@@ -1251,6 +1570,10 @@ export default function Home() {
     
     try {
       await taskAPI.rejectTask(selectedTaskForRejection.id, rejectionReason);
+      
+      // 增加幸福值
+      await addHappiness();
+      
       showToast('已驳回，大臣将重新设计方案');
       setRejectionReason('');
       setSelectedTaskForRejection(null);
@@ -1261,6 +1584,165 @@ export default function Home() {
       setAnimationPhase('done');
       setThinkingState('none');
     }
+  };
+
+  // 惩罚大臣
+  const handlePunishMinister = async () => {
+    if (!punishmentContent.trim()) {
+      showToast('请输入惩罚内容', 'error');
+      return;
+    }
+
+    if (!selectedTaskForPunishment || !currentCourt?.id || !user?.id) {
+      showToast('参数错误', 'error');
+      return;
+    }
+
+    // 确保获取正确的 user_id
+    const ministerId = selectedTaskForPunishment.user_id || selectedTaskForPunishment.user?.id;
+    
+    if (!ministerId) {
+      showToast('无法获取大臣 ID', 'error');
+      return;
+    }
+
+    // 关闭弹窗，显示求饶动画
+    setShowPunishModal(false);
+    setShowPunishmentAnimation(true);
+    
+    try {
+      const response = await taskAPI.punishMinister(
+        currentCourt.id,
+        ministerId, // 大臣 ID
+        user.id, // 皇帝 ID
+        punishmentContent
+      );
+      
+      // 获取生成的内容
+      const generatedContent = response.data?.data?.content || '惩罚已执行';
+      setGeneratedPunishmentText(generatedContent);
+      
+      // 隐藏求饶动画，显示生成的内容
+      setShowPunishmentAnimation(false);
+      setShowPunishmentResult(true);
+      
+      showToast('惩罚已执行，大臣已在广场发布');
+      setPunishmentContent('');
+      setSelectedTaskForPunishment(null);
+    } catch (error: any) {
+      console.error('惩罚失败:', error);
+      console.error('错误详情:', error.response?.data);
+      
+      // 隐藏动画
+      setShowPunishmentAnimation(false);
+      
+      if (error.response?.data?.message?.includes('Plaza access required')) {
+        showToast('该大臣尚未激活 Plaza 准入', 'error');
+      } else {
+        showToast('惩罚失败，请重试', 'error');
+      }
+    }
+  };
+
+  // 发送悄悄话
+  const handleSendWhisper = async () => {
+    if (!whisperMessage.trim()) {
+      showToast('请输入内容', 'error');
+      return;
+    }
+
+    if (!whisperTarget || !currentCourt?.id || !user?.id) {
+      showToast('参数错误', 'error');
+      return;
+    }
+
+    console.log('🗣️ 发送悄悄话', {
+      from: user.id,
+      to: whisperTarget.user_id || whisperTarget.user?.id,
+      message: whisperMessage
+    });
+
+    // 关闭弹窗，开始显示气泡动画
+    setShowWhisperModal(false);
+    setWhisperPhase('message_bubble');
+    setDisplayedWhisperMessage('');
+    setDisplayedWhisperReply('');
+    setIsWhisperTyping(true);
+    
+    // 打字机效果显示发送的消息
+    let msgIndex = 0;
+    const msgInterval = setInterval(() => {
+      if (msgIndex < whisperMessage.length) {
+        setDisplayedWhisperMessage(whisperMessage.substring(0, msgIndex + 1));
+        msgIndex++;
+      } else {
+        clearInterval(msgInterval);
+        setIsWhisperTyping(false);
+        
+        // 消息打完后等待2秒，然后调用API
+        setTimeout(async () => {
+          setWhisperPhase('waiting_reply');
+          
+          try {
+            const targetUserId = whisperTarget.user_id || whisperTarget.user?.id;
+            console.log('📡 调用悄悄话 API', { targetUserId });
+            
+            const response = await whisperAPI.send(
+              currentCourt.id,
+              user.id,
+              targetUserId,
+              whisperMessage
+            );
+            
+            console.log('✅ 悄悄话 API 响应', response.data);
+            
+            // 获取生成的回复
+            const replyContent = response.data?.data?.parsed_content?.reply || '';
+            console.log('💬 AI 生成的回复', replyContent);
+            
+            setCurrentWhisper({
+              ...response.data?.data,
+              from_user_id: user.id,
+              to_user_id: targetUserId,
+              message: whisperMessage,
+              reply: replyContent
+            });
+            
+            // 开始显示回复气泡
+            setWhisperPhase('reply_bubble');
+            setDisplayedWhisperReply('');
+            
+            // 打字机效果显示回复
+            let replyIndex = 0;
+            const replyInterval = setInterval(() => {
+              if (replyIndex < replyContent.length) {
+                setDisplayedWhisperReply(replyContent.substring(0, replyIndex + 1));
+                replyIndex++;
+              } else {
+                clearInterval(replyInterval);
+                
+                // 回复打完后等待3秒，然后淡出
+                setTimeout(() => {
+                  console.log('✅ 悄悄话动画完成');
+                  setWhisperPhase('done');
+                  setWhisperMessage('');
+                  setWhisperTarget(null);
+                  setCurrentWhisper(null);
+                  setDisplayedWhisperMessage('');
+                  setDisplayedWhisperReply('');
+                }, 3000);
+              }
+            }, 50);
+            
+            showToast('悄悄话已发送');
+          } catch (error: any) {
+            console.error('❌ 发送悄悄话失败:', error);
+            setWhisperPhase('done');
+            showToast('发送失败，请重试', 'error');
+          }
+        }, 2000);
+      }
+    }, 50);
   };
 
   // 如果没有朝堂，显示游戏介绍页面
@@ -1410,15 +1892,69 @@ export default function Home() {
     <div
       className="min-h-screen relative overflow-hidden"
       style={{
-        backgroundImage: `url(${bgImage})`,
+        backgroundImage: `url(${getCurrentBackgroundImage()})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
     >
+      {/* 顶部进度条 - 疆土拓展 */}
+      <div className="absolute top-6 left-1/2 transform -translate-x-1/2 z-20">
+        <div 
+          onClick={handleOpenTerritory}
+          className="cursor-pointer group"
+        >
+          {/* 疆土拓展标题 - 独立一行 */}
+          <div className="text-center mb-1.5">
+            <span className="text-amber-900 font-bold text-base text-chinese-title text-gold-gradient">
+              疆土拓展
+            </span>
+          </div>
+          
+          {/* 进度条容器 - 所有元素水平对齐 */}
+          <div className="flex items-center gap-2">
+            {/* 左侧：百姓状态图片 - 使用固定高度与进度条对齐 */}
+            <div className="w-10 h-5 flex items-center justify-center flex-shrink-0">
+              <img 
+                src={getPeopleImage()} 
+                alt="百姓状态" 
+                className="w-10 h-10 object-contain drop-shadow-lg"
+              />
+            </div>
+            
+            {/* 中间：进度条 */}
+            <div className={`relative h-5 bg-black/50 backdrop-blur-sm rounded-full overflow-hidden border ${canUnlockNext ? 'border-yellow-400 animate-pulse-glow' : 'border-yellow-600/60 group-hover:border-yellow-400'} transition-all shadow-lg`} style={{ width: '260px' }}>
+              {/* 进度填充 */}
+              <div 
+                className={`absolute inset-y-0 left-0 bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 transition-all duration-500 ${canUnlockNext ? 'animate-pulse' : 'group-hover:from-yellow-400 group-hover:via-amber-400 group-hover:to-orange-400'}`}
+                style={{ width: `${getCurrentProgress()}%` }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+              </div>
+              
+              {/* 进度文字 */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-chinese-elegant">
+                  百姓幸福度：{Math.floor(getCurrentProgress())}%
+                </span>
+              </div>
+            </div>
+            
+            {/* 右侧：下一个国家名字（达到100时显示） - 高度与进度条一致 */}
+            {canUnlockNext && nextScene && (
+              <div className="flex-shrink-0 h-5 flex items-center px-2.5 bg-black/50 backdrop-blur-sm rounded-full animate-pulse">
+                <span className="text-yellow-300 text-xs font-bold text-chinese-elegant drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                  → {nextScene.name}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* 左上角按钮 - 邀请好友和退出 */}
       <div className="absolute top-6 left-6 flex flex-col gap-3 z-10">
         <button
-          onClick={handleInvite}
+          onClick={handleOpenSummonModal}
           className="bg-white/80 backdrop-blur-sm hover:bg-white/90 text-amber-900 px-5 py-2 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all border-2 border-amber-400 text-chinese-elegant text-base animate-slideInLeft"
           style={{ animationDelay: '0.1s' }}
         >
@@ -1426,11 +1962,11 @@ export default function Home() {
         </button>
         
         <button
-          onClick={handleOpenSummonModal}
-          className="bg-white/80 backdrop-blur-sm hover:bg-white/90 text-purple-700 px-5 py-2 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all border-2 border-purple-400 text-chinese-elegant text-base animate-slideInLeft"
+          onClick={handleInvite}
+          className="bg-white/80 backdrop-blur-sm hover:bg-white/90 text-amber-900 px-5 py-2 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all border-2 border-amber-400 text-chinese-elegant text-base animate-slideInLeft"
           style={{ animationDelay: '0.15s' }}
         >
-          召唤分身
+          广发英雄帖
         </button>
         
         <button
@@ -1453,7 +1989,7 @@ export default function Home() {
 
       {/* 右上角 - 重生转世 */}
       {courts?.data.data && courts.data.data.length > 1 && (
-        <div className="absolute top-6 right-6 z-10">
+        <div className="absolute top-20 right-6 z-10">
           <div className="relative">
             {/* 重生转世按钮 - 白色半透明背景 */}
             <button
@@ -1481,7 +2017,7 @@ export default function Home() {
                       setCurrentCourtId(court.id);
                       localStorage.setItem('currentCourtId', court.id);
                       setShowCourtDropdown(false);
-                      window.location.reload();
+                      // 不刷新页面，直接切换朝堂
                     }}
                     className={`w-full px-4 py-2 text-left font-bold transition-all text-chinese-elegant text-sm ${
                       court.id === currentCourt?.id
@@ -1506,18 +2042,62 @@ export default function Home() {
       )}
 
       {/* 左下角怨气值 */}
-      <div className="absolute bottom-6 left-6 bg-white/90 rounded-2xl p-6 shadow-lg z-10 min-w-[200px] border border-amber-200 animate-fadeInUp">
-        <h3 className="text-amber-900 font-bold text-2xl mb-3 text-chinese-title text-gold-gradient">怨气值</h3>
+      <div className="absolute bottom-4 left-4 bg-white/90 rounded-xl p-3 shadow-lg z-10 min-w-[200px] border border-amber-200 animate-fadeInUp">
+        <h3 className="text-amber-900 font-bold text-lg mb-2 text-chinese-title text-gold-gradient">怨气值</h3>
         {ministers.slice(0, 3).map((m: any, i: number) => (
-          <div key={m.id} className="text-amber-900 font-medium text-lg mb-1 text-chinese-elegant animate-fadeInUp" style={{ animationDelay: `${i * 0.1}s` }}>
-            奴才 {i + 1}:
-            <span className={m.grudge_value > 80 ? 'text-red-600 ml-2 font-bold animate-pulse' : 'text-yellow-600 ml-2'}>
-              {m.grudge_value}
-            </span>
+          <div 
+            key={m.id} 
+            className="flex items-center gap-2 mb-2 p-1.5 rounded-lg hover:bg-amber-50 cursor-pointer transition-all animate-fadeInUp group"
+            style={{ animationDelay: `${i * 0.1}s` }}
+            onClick={() => {
+              if (isEmperor) {
+                setSelectedTaskForPunishment(m);
+                setShowPunishModal(true);
+              }
+            }}
+          >
+            {/* 头像 */}
+            <div className="relative">
+              {m.user?.avatar ? (
+                <img
+                  src={m.user.avatar}
+                  alt={m.user.nickname}
+                  className="w-8 h-8 rounded-full object-cover border-2 border-amber-400 group-hover:border-amber-600 transition-all"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-400 flex items-center justify-center text-white text-sm font-bold border-2 border-amber-400 group-hover:border-amber-600 transition-all">
+                  {m.user?.nickname?.charAt(0) || '?'}
+                </div>
+              )}
+              {/* 怨气值标记 */}
+              {m.grudge_value > 80 && (
+                <div className="absolute -top-1 -right-1 text-sm animate-bounce">😤</div>
+              )}
+            </div>
+            
+            {/* 名字和怨气值 */}
+            <div className="flex-1">
+              <div className="text-amber-900 font-bold text-sm text-chinese-elegant group-hover:text-amber-700">
+                {m.user?.nickname || '未知'}
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-gray-500 text-xs">怨气:</span>
+                <span className={m.grudge_value > 80 ? 'text-red-600 font-bold animate-pulse text-xs' : 'text-yellow-600 font-medium text-xs'}>
+                  {m.grudge_value}
+                </span>
+              </div>
+            </div>
+            
+            {/* 惩罚图标提示（仅皇帝可见） */}
+            {isEmperor && (
+              <div className="text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold text-sm text-chinese-elegant">
+                罚
+              </div>
+            )}
           </div>
         ))}
         {ministers.length === 0 && (
-          <div className="text-gray-500 text-sm text-chinese-elegant">暂无奴才</div>
+          <div className="text-gray-500 text-xs text-chinese-elegant">暂无大臣</div>
         )}
       </div>
 
@@ -1597,7 +2177,18 @@ export default function Home() {
               <div
                 key={minister.id}
                 className="relative cursor-pointer transform hover:scale-110 transition-transform duration-200"
-                onClick={() => handleAssignTask(minister)}
+                onClick={() => {
+                  // 如果是皇帝，点击太监发布圣旨
+                  if (isEmperor) {
+                    handleAssignTask(minister);
+                  } else {
+                    // 如果是大臣，点击其他大臣说悄悄话
+                    if (minister.user_id !== user?.id) {
+                      setWhisperTarget(minister);
+                      setShowWhisperModal(true);
+                    }
+                  }
+                }}
               >
                 {/* Thinking 和 Idea 动画 - 显示在大臣左上方，更靠近大臣 */}
                 {thinkingState !== 'none' && 
@@ -1612,6 +2203,58 @@ export default function Home() {
                       alt={thinkingState === 'thinking' ? 'Thinking' : 'Idea'}
                       className="w-20 h-20 object-contain drop-shadow-xl animate-bounce"
                     />
+                  </div>
+                )}
+                
+                {/* 悄悄话消息气泡 - 发送者的消息，显示在发送者头上 */}
+                {(whisperPhase === 'message_bubble' || whisperPhase === 'waiting_reply') && 
+                 displayedWhisperMessage && 
+                 minister.user_id === user?.id && (
+                  <div className="absolute bg-purple-400 rounded-3xl shadow-lg z-30" style={{ 
+                    top: '-140px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '280px'
+                  }}>
+                    <div className="p-3">
+                      <p className="text-purple-100 text-xs whitespace-pre-wrap leading-relaxed">
+                        <span className="text-yellow-300 font-bold">【悄悄话】</span>
+                        <br />
+                        {displayedWhisperMessage}
+                        {isWhisperTyping && (
+                          <span className="animate-pulse">|</span>
+                        )}
+                      </p>
+                    </div>
+                    {/* 气泡尾巴 */}
+                    <div className="absolute bottom-0 left-1/2 transform translate-y-full -translate-x-1/2">
+                      <div className="w-0 h-0 border-l-[15px] border-l-transparent border-r-[15px] border-r-transparent border-t-[15px] border-t-purple-400"></div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* 悄悄话回复气泡 - 接收者的回复，显示在接收者头上 */}
+                {whisperPhase === 'reply_bubble' && 
+                 currentWhisper && 
+                 displayedWhisperReply && 
+                 (currentWhisper.to_user_id === minister.user_id || currentWhisper.to_user?.id === minister.user_id) && (
+                  <div className="absolute bg-pink-400 rounded-3xl shadow-lg z-30" style={{ 
+                    top: '-140px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '280px'
+                  }}>
+                    <div className="p-3">
+                      <p className="text-pink-100 text-xs whitespace-pre-wrap leading-relaxed">
+                        <span className="text-yellow-300 font-bold">【回复】</span>
+                        <br />
+                        {displayedWhisperReply}
+                      </p>
+                    </div>
+                    {/* 气泡尾巴 */}
+                    <div className="absolute bottom-0 left-1/2 transform translate-y-full -translate-x-1/2">
+                      <div className="w-0 h-0 border-l-[15px] border-l-transparent border-r-[15px] border-r-transparent border-t-[15px] border-t-pink-400"></div>
+                    </div>
                   </div>
                 )}
                 
@@ -1705,34 +2348,34 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 邀请好友弹窗 */}
+      {/* 广发英雄帖弹窗 */}
       {showInviteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-2xl font-bold text-amber-900 mb-4">
-              邀请好友加入朝堂
+            <h2 className="text-2xl font-bold text-amber-900 mb-4 text-chinese-title">
+              广发英雄帖
             </h2>
-            <p className="text-gray-600 mb-4">
-              分享下面的链接给你的好友，让他们加入你的朝堂！
+            <p className="text-gray-600 mb-4 text-chinese-elegant">
+              将此英雄帖分享给好友，邀其入朝共襄盛举！
             </p>
             <div className="bg-gray-100 p-3 rounded-lg mb-4 break-all border-2 border-gray-300">
               <code className="text-sm select-all">{inviteLink}</code>
             </div>
             <p className="text-xs text-gray-500 mb-4">
-              💡 提示：点击"复制链接"按钮，或直接选中上方链接手动复制
+              💡 提示：点击"抄录英雄帖"按钮，或直接选中上方链接手动复制
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowInviteModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-chinese-elegant"
               >
                 关闭
               </button>
               <button
                 onClick={copyInviteLink}
-                className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-all"
+                className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-all text-chinese-elegant"
               >
-                抄录诏书
+                抄录英雄帖
               </button>
             </div>
           </div>
@@ -2086,6 +2729,151 @@ export default function Home() {
         </div>
       )}
 
+      {/* 惩罚弹窗 */}
+      {showPunishModal && selectedTaskForPunishment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[100]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-2xl font-bold text-purple-600 mb-2 text-chinese-title">
+              惩罚大臣
+            </h2>
+            <p className="text-amber-700 font-bold mb-4 text-chinese-elegant">
+              惩罚对象：{selectedTaskForPunishment.user?.nickname || '未知'}
+            </p>
+            <p className="text-gray-600 mb-4 text-chinese-elegant">
+              朕对此臣不满！请描述惩罚原因，朕的虚拟分身会让其在广场自我检讨。
+            </p>
+            <textarea
+              value={punishmentContent}
+              onChange={(e) => setPunishmentContent(e.target.value)}
+              placeholder="例如：办事不力，屡次拖延，辜负圣恩..."
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 mb-4 text-chinese-elegant"
+              autoFocus
+            />
+            <p className="text-xs text-gray-500 mb-4">
+              💡 AI 将根据你的描述自动生成羞耻文案，以 {selectedTaskForPunishment.user?.nickname} 的虚拟分身名义发布到 SecondMe Plaza 广场
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowPunishModal(false);
+                  setPunishmentContent('');
+                  setSelectedTaskForPunishment(null);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-chinese-elegant"
+              >
+                取消
+              </button>
+              <button
+                onClick={handlePunishMinister}
+                className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-chinese-elegant"
+              >
+                执行惩罚
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 惩罚求饶动画 - 半全屏 */}
+      {showPunishmentAnimation && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[110] animate-fadeIn">
+          <div className="relative flex flex-col items-center justify-center">
+            <img 
+              src={qiuraoGif} 
+              alt="求饶" 
+              className="w-[400px] h-[400px] object-contain"
+            />
+            <div className="mt-6 text-white text-2xl font-bold text-chinese-title animate-pulse">
+              大臣正在撰写检讨...
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 惩罚结果显示 - 检讨书 */}
+      {showPunishmentResult && generatedPunishmentText && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[110] animate-fadeIn">
+          <div className="relative w-[500px] h-[600px]">
+            {/* 检讨书背景图 */}
+            <img 
+              src={jiantaoImage} 
+              alt="检讨书" 
+              className="w-full h-full object-contain"
+            />
+            
+            {/* 检讨内容覆盖层 */}
+            <div className="absolute inset-0 flex flex-col items-center px-20 pt-32 pb-16">
+              {/* 检讨内容区域 */}
+              <div className="flex-1 w-full flex items-start justify-center overflow-hidden">
+                <div className="w-full max-h-[350px] overflow-y-auto px-6 scrollbar-thin scrollbar-thumb-amber-700 scrollbar-track-transparent">
+                  <p className="text-gray-800 text-base leading-loose text-center text-chinese-elegant whitespace-pre-wrap" style={{ fontFamily: "'KaiTi', 'STKaiti', 'SimKai', serif" }}>
+                    {generatedPunishmentText}
+                  </p>
+                </div>
+              </div>
+              
+              {/* 已阅按钮 */}
+              <div className="mt-4">
+                <button
+                  onClick={() => {
+                    setShowPunishmentResult(false);
+                    setGeneratedPunishmentText('');
+                  }}
+                  className="px-10 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-lg font-bold text-chinese-elegant transition-all hover:scale-105 shadow-lg border-2 border-red-800"
+                  style={{ fontFamily: "'KaiTi', 'STKaiti', 'SimKai', serif" }}
+                >
+                  已阅
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 悄悄话弹窗 */}
+      {showWhisperModal && whisperTarget && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[100]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-2xl font-bold text-purple-600 mb-2 text-chinese-title">
+              说悄悄话
+            </h2>
+            <p className="text-amber-700 font-bold mb-4 text-chinese-elegant">
+              对象：{whisperTarget.user?.nickname || '未知'}
+            </p>
+            <p className="text-gray-600 mb-4 text-chinese-elegant text-sm">
+              💡 输入你想说的话，对方会自动回复（皇上也能看到哦）
+            </p>
+            <textarea
+              value={whisperMessage}
+              onChange={(e) => setWhisperMessage(e.target.value)}
+              placeholder="例如：今天皇上下的任务好难啊..."
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 mb-4 text-chinese-elegant"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowWhisperModal(false);
+                  setWhisperMessage('');
+                  setWhisperTarget(null);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-chinese-elegant"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSendWhisper}
+                className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-chinese-elegant"
+              >
+                发送
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 文件库弹窗 */}
       {showFilesModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
@@ -2285,81 +3073,192 @@ export default function Home() {
         </div>
       )}
 
-      {/* 召唤分身弹窗 */}
+      {/* 招贤纳士弹窗 - 显示卡牌背面 */}
       {showSummonModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl p-8 max-w-3xl w-full shadow-2xl border-4 border-purple-400 animate-scaleIn">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-bold text-purple-900 text-chinese-title text-gold-gradient">
-                召唤分身
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 max-w-2xl w-full shadow-2xl border-4 border-amber-400 animate-scaleIn">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-amber-900 text-chinese-title text-gold-gradient">
+                招贤纳士
               </h2>
               <button
                 onClick={() => setShowSummonModal(false)}
-                className="w-10 h-10 rounded-full bg-red-600 hover:bg-red-700 text-white text-2xl flex items-center justify-center transition-all hover:scale-110 shadow-lg"
+                className="w-8 h-8 rounded-full bg-red-600 hover:bg-red-700 text-white text-xl flex items-center justify-center transition-all hover:scale-110 shadow-lg"
               >
                 ×
               </button>
             </div>
             
-            <p className="text-purple-700 mb-6 text-chinese-elegant text-center">
-              选择一个 SecondMe 虚拟分身加入你的朝堂，他们将随机分配到三省六部
+            <p className="text-amber-700 mb-4 text-chinese-elegant text-center text-sm">
+              点击卡牌翻开，招募 SecondMe 虚拟分身入朝为官
             </p>
 
             {availableBots.length > 0 ? (
-              <div className="grid grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
+              <div 
+                className="grid grid-cols-5 gap-3 max-h-[50vh] overflow-y-auto pr-2"
+                style={{
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                }}
+              >
+                <style>{`
+                  .hide-scrollbar::-webkit-scrollbar {
+                    display: none;
+                  }
+                  .card-back {
+                    cursor: pointer;
+                    transition: transform 0.3s ease;
+                  }
+                  .card-back:hover {
+                    transform: translateY(-10px);
+                  }
+                `}</style>
                 {availableBots.map((bot: any) => (
-                  <button
+                  <div
                     key={bot.id}
-                    onClick={() => handleSummonBot(bot.id, bot.nickname)}
-                    disabled={isSummoning}
-                    className="p-6 rounded-2xl border-2 border-purple-300 bg-white hover:bg-purple-50 hover:border-purple-500 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-xl"
+                    onClick={handleCardClick}
+                    className="card-back hide-scrollbar"
                   >
-                    <div className="flex flex-col items-center">
-                      {/* 头像 */}
-                      {bot.avatar_url ? (
-                        <img
-                          src={bot.avatar_url}
-                          alt={bot.nickname}
-                          className="w-20 h-20 rounded-full mb-3 object-cover border-2 border-purple-300"
-                        />
-                      ) : (
-                        <div className="w-20 h-20 rounded-full mb-3 bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-2xl font-bold">
-                          {bot.nickname?.charAt(0) || '?'}
-                        </div>
-                      )}
-                      
-                      {/* 昵称 */}
-                      <div className="font-bold text-purple-900 text-lg text-chinese-title mb-1">
-                        {bot.nickname || '未命名'}
-                      </div>
-                      
-                      {/* 提示文字 */}
-                      <div className="text-xs text-purple-600 text-chinese-elegant">
-                        点击召唤
-                      </div>
-                    </div>
-                  </button>
+                    <img
+                      src={cardBackImage}
+                      alt="卡牌背面"
+                      className="w-full h-auto rounded-xl shadow-lg"
+                    />
+                  </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">🤷</div>
-                <p className="text-purple-700 text-lg text-chinese-elegant">
-                  暂无可召唤的分身
+              <div className="text-center py-8">
+                <div className="text-4xl mb-3">🤷</div>
+                <p className="text-amber-700 text-base text-chinese-elegant">
+                  暂无可招募的贤士
                 </p>
-                <p className="text-purple-500 text-sm text-chinese-elegant mt-2">
+                <p className="text-amber-500 text-xs text-chinese-elegant mt-1">
                   所有用户都已在朝堂中
                 </p>
               </div>
             )}
 
-            <div className="mt-6 text-center">
+            <div className="mt-4 text-center">
               <button
                 onClick={() => setShowSummonModal(false)}
-                className="px-8 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-xl font-bold transition-all text-chinese-elegant"
+                className="px-6 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-xl font-bold transition-all text-chinese-elegant text-sm"
               >
                 取消
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 翻牌动画全屏遮罩 */}
+      {showCardFlip && selectedBot && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100]">
+          <div className="relative w-[400px] h-[600px]" style={{ perspective: '1000px' }}>
+            <div
+              className="relative w-full h-full transition-transform duration-1000"
+              style={{
+                transformStyle: 'preserve-3d',
+                transform: isFlipping ? 'rotateY(180deg)' : 'rotateY(0deg)',
+              }}
+            >
+              {/* 卡牌背面 */}
+              <div
+                className="absolute w-full h-full"
+                style={{
+                  backfaceVisibility: 'hidden',
+                }}
+              >
+                <img
+                  src={cardBackImage}
+                  alt="卡牌背面"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+
+              {/* 卡牌正面 - 包含用户信息 */}
+              <div
+                className="absolute w-full h-full"
+                style={{
+                  backfaceVisibility: 'hidden',
+                  transform: 'rotateY(180deg)',
+                }}
+              >
+                <div className="relative w-full h-full">
+                  {/* 卡牌正面背景 */}
+                  <img
+                    src={cardFrontImage}
+                    alt="卡牌正面"
+                    className="w-full h-full object-contain"
+                  />
+                  
+                  {/* 用户信息叠加层 */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
+                    {/* 头像 */}
+                    <div className="mb-4">
+                      {selectedBot.avatar ? (
+                        <img
+                          src={selectedBot.avatar}
+                          alt={selectedBot.nickname}
+                          className="w-32 h-32 rounded-full object-cover border-4 border-purple-400 shadow-2xl"
+                        />
+                      ) : (
+                        <div className="w-32 h-32 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-5xl font-bold border-4 border-purple-400 shadow-2xl">
+                          {selectedBot.nickname?.charAt(0) || '?'}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* 昵称 */}
+                    <h3 className="text-3xl font-bold text-purple-900 text-chinese-title mb-2">
+                      {selectedBot.nickname}
+                    </h3>
+                    
+                    {/* 个人简介 */}
+                    {selectedBot.bio && (
+                      <div className="mb-4 max-w-sm max-h-32 overflow-y-auto">
+                        <p className="text-purple-700 text-xs text-chinese-elegant text-center leading-relaxed px-4">
+                          {/* 提取总体概述部分，如果没有则显示前200个字符 */}
+                          {(() => {
+                            const bio = selectedBot.bio;
+                            // 尝试提取"总体概述"部分
+                            const overviewMatch = bio.match(/### 总体概述 ###\s*\n([\s\S]*?)(?:\n###|$)/);
+                            if (overviewMatch && overviewMatch[1]) {
+                              return overviewMatch[1].trim().substring(0, 150) + (overviewMatch[1].length > 150 ? '...' : '');
+                            }
+                            // 如果没有总体概述，尝试提取第一段
+                            const firstParagraph = bio.split('\n\n')[0].replace(/###.*###/g, '').trim();
+                            return firstParagraph.substring(0, 150) + (firstParagraph.length > 150 ? '...' : '');
+                          })()}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* 描述 */}
+                    <p className="text-purple-600 text-xs text-chinese-elegant text-center mb-6">
+                      SecondMe 虚拟分身
+                    </p>
+                    
+                    {/* 按钮 */}
+                    <div className="flex gap-4">
+                      <button
+                        onClick={handleCancelSummon}
+                        disabled={isSummoning}
+                        className="px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-xl font-bold transition-all text-chinese-elegant disabled:opacity-50"
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={handleConfirmSummon}
+                        disabled={isSummoning}
+                        className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl font-bold transition-all text-chinese-elegant shadow-lg disabled:opacity-50"
+                      >
+                        {isSummoning ? '招募中...' : '确认招募'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2426,6 +3325,255 @@ export default function Home() {
               {isSubmittingGender ? '保存中...' : '钦此'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* 疆土拓展弹窗 - 显示场景卡牌 */}
+      {showTerritoryModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 max-w-3xl w-full shadow-2xl border-4 border-amber-400 animate-scaleIn">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-amber-900 text-chinese-title text-gold-gradient">
+                疆土拓展
+              </h2>
+              <button
+                onClick={() => setShowTerritoryModal(false)}
+                className="w-8 h-8 rounded-full bg-red-600 hover:bg-red-700 text-white text-xl flex items-center justify-center transition-all hover:scale-110 shadow-lg"
+              >
+                ×
+              </button>
+            </div>
+            
+            <p className="text-amber-700 mb-4 text-chinese-elegant text-center text-sm">
+              点击已解锁的场景切换背景
+            </p>
+
+            <div 
+              className="grid grid-cols-3 gap-4 max-h-[50vh] overflow-y-auto pr-2"
+              style={{
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+              }}
+            >
+              {availableScenes.map((scene: any) => {
+                const isUnlocked = unlockedScenes.includes(scene.id);
+                const isNextToUnlock = nextScene?.id === scene.id && canUnlockNext;
+                
+                return (
+                  <div
+                    key={scene.id}
+                    onClick={() => {
+                      if (isUnlocked) {
+                        handleSceneCardClick(scene);
+                      } else if (isNextToUnlock) {
+                        // 达到100%，可以点击翻转
+                        handleUnlockNextScene();
+                      }
+                    }}
+                    className={`${isUnlocked || isNextToUnlock ? 'cursor-pointer hover:scale-105' : 'cursor-not-allowed'} transition-transform duration-300`}
+                  >
+                    <div className="relative aspect-[16/9] overflow-hidden rounded-xl shadow-lg">
+                      {isUnlocked ? (
+                        // 已解锁：只显示场景图片
+                        <>
+                          <img
+                            src={scene.image}
+                            alt={scene.name}
+                            className="w-full h-full object-cover"
+                          />
+                          {/* 场景名称 */}
+                          <div className="absolute bottom-3 left-0 right-0 flex justify-center">
+                            <div className="bg-black/70 backdrop-blur-sm px-4 py-1 rounded-full">
+                              <span className="text-white font-bold text-base text-chinese-elegant drop-shadow-lg">
+                                {scene.name}
+                              </span>
+                            </div>
+                          </div>
+                          {/* 当前标签 */}
+                          {currentBackground === scene.id && (
+                            <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                              当前
+                            </div>
+                          )}
+                        </>
+                      ) : isNextToUnlock ? (
+                        // 达到100%：显示卡牌背面，无锁，可点击翻转 - 增强视觉效果
+                        <>
+                          <img
+                            src={bgCardBack}
+                            alt="待解锁"
+                            className="w-full h-full object-cover"
+                          />
+                          {/* 金色光晕边框 */}
+                          <div className="absolute inset-0 rounded-xl border-4 border-yellow-400 animate-pulse shadow-[0_0_30px_rgba(250,204,21,0.8)]"></div>
+                          
+                          {/* 场景名称 - 垂直居中显示 */}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="bg-gradient-to-r from-yellow-400 via-orange-400 to-red-500 px-8 py-4 rounded-full shadow-2xl animate-pulse">
+                              <span className="text-white font-black text-4xl text-chinese-title drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
+                                {scene.name}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* 提示文字 - 底部 */}
+                          <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                            <div className="bg-red-500 text-white px-6 py-2 rounded-full text-base font-bold animate-bounce shadow-2xl">
+                              ⚔️ 点击征战 ⚔️
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        // 未达到100%：显示卡牌背面 + 遮罩 + 锁
+                        <>
+                          <img
+                            src={bgCardBack}
+                            alt="未解锁"
+                            className="w-full h-full object-cover"
+                          />
+                          {/* 黑色遮罩 */}
+                          <div className="absolute inset-0 bg-black/50 rounded-xl"></div>
+                          {/* 锁图标 SVG */}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <svg 
+                              className="w-20 h-20 text-gray-300 drop-shadow-2xl"
+                              fill="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M12 2C9.243 2 7 4.243 7 7v3H6c-1.103 0-2 .897-2 2v8c0 1.103.897 2 2 2h12c1.103 0 2-.897 2-2v-8c0-1.103-.897-2-2-2h-1V7c0-2.757-2.243-5-5-5zM9 7c0-1.654 1.346-3 3-3s3 1.346 3 3v3H9V7zm4 10.723V20h-2v-2.277c-.595-.347-1-.984-1-1.723 0-1.103.897-2 2-2s2 .897 2 2c0 .738-.405 1.376-1 1.723z"/>
+                            </svg>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => setShowTerritoryModal(false)}
+                className="px-6 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-xl font-bold transition-all text-chinese-elegant text-sm"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 场景翻牌动画全屏遮罩 */}
+      {showSceneCardFlip && selectedScene && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100]">
+          {/* 横向卡片容器 - 16:9 比例 */}
+          <div className="relative w-[640px] h-[360px]" style={{ perspective: '1500px' }}>
+            <div
+              className="relative w-full h-full transition-transform duration-1000"
+              style={{
+                transformStyle: 'preserve-3d',
+                transform: isFlippingScene ? 'rotateY(180deg)' : 'rotateY(0deg)',
+              }}
+            >
+              {/* 卡牌背面 */}
+              <div
+                className="absolute w-full h-full"
+                style={{
+                  backfaceVisibility: 'hidden',
+                }}
+              >
+                <img
+                  src={bgCardBack}
+                  alt="卡牌背面"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+
+              {/* 卡牌正面 - 使用新的卡片正面 */}
+              <div
+                className="absolute w-full h-full"
+                style={{
+                  backfaceVisibility: 'hidden',
+                  transform: 'rotateY(180deg)',
+                }}
+              >
+                <div className="relative w-full h-full">
+                  {/* 卡片正面背景 */}
+                  <img
+                    src={bgCardFront}
+                    alt="卡片正面"
+                    className="w-full h-full object-contain"
+                    style={{ objectPosition: 'center top' }}
+                  />
+                  
+                  {/* 场景图片叠加在卡片上 - 限制最大尺寸 */}
+                  <div className="absolute inset-0 flex items-start justify-center pt-12 px-12">
+                    <div className="relative max-w-[80%] max-h-[55%]">
+                      <img
+                        src={selectedScene.image}
+                        alt={selectedScene.name}
+                        className="w-auto h-auto max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* 场景信息叠加层 */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-end p-6">
+                    {/* 场景名称 */}
+                    <div className="bg-black/70 backdrop-blur-sm px-6 py-2 rounded-full mb-2">
+                      <h3 className="text-2xl font-bold text-white text-chinese-title drop-shadow-lg">
+                        {selectedScene.name}
+                      </h3>
+                    </div>
+                    
+                    {/* 场景描述 */}
+                    <div className="bg-black/70 backdrop-blur-sm px-4 py-1.5 rounded-full mb-4">
+                      <p className="text-white text-sm text-chinese-elegant text-center drop-shadow-lg">
+                        {selectedScene.description}
+                      </p>
+                    </div>
+                    
+                    {/* 按钮 */}
+                    <div className="flex gap-4">
+                      <button
+                        onClick={handleCancelScene}
+                        className="px-6 py-2.5 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-xl font-bold transition-all text-chinese-elegant"
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={() => {
+                          // 判断是否是待解锁的场景
+                          const isUnlocked = unlockedScenes.includes(selectedScene.id);
+                          if (isUnlocked) {
+                            handleConfirmScene();
+                          } else {
+                            handleStartConquest();
+                          }
+                        }}
+                        className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl font-bold transition-all text-chinese-elegant shadow-lg"
+                      >
+                        {unlockedScenes.includes(selectedScene.id) ? '选择此场景' : '去征战'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 征战视频全屏播放 */}
+      {showConquestVideo && (
+        <div className="fixed inset-0 bg-black z-[200] flex items-center justify-center">
+          <video
+            autoPlay
+            className="max-w-[80%] max-h-[80%] object-contain"
+            onEnded={handleConquestComplete}
+          >
+            <source src={conquestVideo} type="video/mp4" />
+          </video>
         </div>
       )}
     </div>
