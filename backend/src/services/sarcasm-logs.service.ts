@@ -255,16 +255,36 @@ export async function logTaskFailure(
   taskId: string,
   score: number
 ): Promise<void> {
-  // 驳回的讽刺消息更狠一些
-  const failureMessages = [
-    `${ministerName}的"${taskName}"被驳回了，${score}分的成绩，皇帝看了一眼就摇头了`,
-    `${ministerName}"${taskName}"做得一塌糊涂，${score}分，皇帝说"这都写不好？"`,
-    `${ministerName}的"${taskName}"被打回重做，${score}分，皇帝直接扔到一边了`,
-    `${ministerName}"${taskName}"不合格，${score}分，皇帝说"重新做！"`,
-    `${ministerName}的"${taskName}"被驳回，${score}分，皇帝说"就这水平？"`
-  ];
+  // 判断是任务还是对话
+  const isTask = taskName.includes('写') || taskName.includes('做') || taskName.includes('完成') || 
+                 taskName.includes('准备') || taskName.includes('整理') || taskName.includes('分析') ||
+                 taskName.includes('报告') || taskName.includes('方案') || taskName.includes('计划') ||
+                 taskName.includes('设计') || taskName.includes('开发') || taskName.includes('实施');
+  
+  let message: string;
+  
+  if (isTask) {
+    // 任务类型的驳回消息
+    const taskFailureMessages = [
+      `${ministerName}的"${taskName}"被驳回了，${score}分的成绩，皇帝看了一眼就摇头了`,
+      `${ministerName}"${taskName}"做得一塌糊涂，${score}分，皇帝说"这都做不好？"`,
+      `${ministerName}的"${taskName}"被打回重做，${score}分，皇帝直接扔到一边了`,
+      `${ministerName}"${taskName}"不合格，${score}分，皇帝说"重新做！"`,
+      `${ministerName}的"${taskName}"被驳回，${score}分，皇帝说"就这水平？"`
+    ];
+    message = taskFailureMessages[Math.floor(Math.random() * taskFailureMessages.length)];
+  } else {
+    // 对话类型的驳回消息
+    const chatFailureMessages = [
+      `${ministerName}对"${taskName}"的回应让皇帝很不满意，${score}分，皇帝说"这都说不好？"`,
+      `皇帝对${ministerName}关于"${taskName}"的回答很失望，${score}分，直接驳回了`,
+      `${ministerName}回应"${taskName}"时表现糟糕，${score}分，皇帝说"重新想想！"`,
+      `皇帝对${ministerName}的回答不满意，${score}分，说"就这？"`,
+      `${ministerName}的回应让皇帝摇头，${score}分，"再想想怎么说"`
+    ];
+    message = chatFailureMessages[Math.floor(Math.random() * chatFailureMessages.length)];
+  }
 
-  const message = failureMessages[Math.floor(Math.random() * failureMessages.length)];
   const logMessage = `[${new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' })}] ${message}`;
 
   await createSarcasmLog(courtId, ministerId, 'task_failed', logMessage, {
@@ -285,30 +305,62 @@ export async function logTaskSuccess(
   taskId: string,
   score: number
 ): Promise<void> {
-  // 根据分数生成不同的讽刺消息
+  // 判断是任务还是对话
+  const isTask = taskName.includes('写') || taskName.includes('做') || taskName.includes('完成') || 
+                 taskName.includes('准备') || taskName.includes('整理') || taskName.includes('分析') ||
+                 taskName.includes('报告') || taskName.includes('方案') || taskName.includes('计划') ||
+                 taskName.includes('设计') || taskName.includes('开发') || taskName.includes('实施');
+  
   let message: string;
   
-  if (score >= 90) {
-    const excellentMessages = [
-      `${ministerName}的"${taskName}"居然做得还不错，${score}分，皇帝难得地点了点头`,
-      `${ministerName}这次"${taskName}"表现出人意料，${score}分，皇帝说"还算有点用"`,
-      `${ministerName}"${taskName}"完成得挺好，${score}分，皇帝罕见地露出了笑容`
-    ];
-    message = excellentMessages[Math.floor(Math.random() * excellentMessages.length)];
-  } else if (score >= 80) {
-    const goodMessages = [
-      `${ministerName}"${taskName}"完成了，${score}分，皇帝勉强点了点头`,
-      `${ministerName}的"${taskName}"得了${score}分，皇帝说"还行吧"`,
-      `${ministerName}"${taskName}"做完了，${score}分，皇帝说"可以接受"`
-    ];
-    message = goodMessages[Math.floor(Math.random() * goodMessages.length)];
+  if (isTask) {
+    // 任务类型的批准消息
+    if (score >= 90) {
+      const excellentMessages = [
+        `${ministerName}的"${taskName}"居然做得还不错，${score}分，皇帝难得地点了点头`,
+        `${ministerName}这次"${taskName}"表现出人意料，${score}分，皇帝说"还算有点用"`,
+        `${ministerName}"${taskName}"完成得挺好，${score}分，皇帝罕见地露出了笑容`
+      ];
+      message = excellentMessages[Math.floor(Math.random() * excellentMessages.length)];
+    } else if (score >= 80) {
+      const goodMessages = [
+        `${ministerName}"${taskName}"完成了，${score}分，皇帝勉强点了点头`,
+        `${ministerName}的"${taskName}"得了${score}分，皇帝说"还行吧"`,
+        `${ministerName}"${taskName}"做完了，${score}分，皇帝说"可以接受"`
+      ];
+      message = goodMessages[Math.floor(Math.random() * goodMessages.length)];
+    } else {
+      const okMessages = [
+        `${ministerName}"${taskName}"总算完成了，${score}分，皇帝看了一眼就放下了`,
+        `${ministerName}的"${taskName}"得了${score}分，皇帝说"凑合吧"`,
+        `${ministerName}"${taskName}"做完了，${score}分，皇帝没说什么就批准了`
+      ];
+      message = okMessages[Math.floor(Math.random() * okMessages.length)];
+    }
   } else {
-    const okMessages = [
-      `${ministerName}"${taskName}"总算完成了，${score}分，皇帝看了一眼就放下了`,
-      `${ministerName}的"${taskName}"得了${score}分，皇帝说"凑合吧"`,
-      `${ministerName}"${taskName}"做完了，${score}分，皇帝没说什么就批准了`
-    ];
-    message = okMessages[Math.floor(Math.random() * okMessages.length)];
+    // 对话类型的批准消息
+    if (score >= 90) {
+      const excellentMessages = [
+        `${ministerName}对"${taskName}"的回应让皇帝满意，${score}分，皇帝点了点头`,
+        `${ministerName}关于"${taskName}"的回答不错，${score}分，皇帝说"还算会说话"`,
+        `皇帝对${ministerName}的回应很满意，${score}分，"这次说得好"`
+      ];
+      message = excellentMessages[Math.floor(Math.random() * excellentMessages.length)];
+    } else if (score >= 80) {
+      const goodMessages = [
+        `${ministerName}对"${taskName}"的回应还行，${score}分，皇帝勉强点了点头`,
+        `皇帝对${ministerName}的回答表示认可，${score}分，"还行吧"`,
+        `${ministerName}的回应得了${score}分，皇帝说"可以"`
+      ];
+      message = goodMessages[Math.floor(Math.random() * goodMessages.length)];
+    } else {
+      const okMessages = [
+        `${ministerName}的回应凑合，${score}分，皇帝看了一眼就批准了`,
+        `皇帝对${ministerName}的回答不置可否，${score}分，"算了，就这样吧"`,
+        `${ministerName}的回应得了${score}分，皇帝没说什么就过了`
+      ];
+      message = okMessages[Math.floor(Math.random() * okMessages.length)];
+    }
   }
 
   const logMessage = `[${new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' })}] ${message}`;
