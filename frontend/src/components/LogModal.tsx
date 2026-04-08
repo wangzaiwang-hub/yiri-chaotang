@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
 import '../styles/LogModal.css';
+import shengzhiImage from '../recourse/shengzhi.png';
+import kingImage from '../recourse/king.png';
+import queenImage from '../recourse/queen.png';
+import boyImage from '../recourse/boy.png';
+import girlImage from '../recourse/girl.png';
 
 interface SarcasmLog {
   id: string;
@@ -13,9 +18,23 @@ interface LogModalProps {
   logs: SarcasmLog[];
   onConfirm: () => void;
   isOpen: boolean;
+  emperorInfo?: {
+    nickname: string;
+    gender: 'male' | 'female';
+  };
+  ministerInfo?: {
+    nickname: string;
+    gender: 'male' | 'female';
+  };
 }
 
-export const LogModal: React.FC<LogModalProps> = ({ logs, onConfirm, isOpen }) => {
+export const LogModal: React.FC<LogModalProps> = ({ 
+  logs, 
+  onConfirm, 
+  isOpen, 
+  emperorInfo, 
+  ministerInfo 
+}) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   if (!isOpen || logs.length === 0) {
@@ -42,38 +61,62 @@ export const LogModal: React.FC<LogModalProps> = ({ logs, onConfirm, isOpen }) =
     onConfirm();
   };
 
+  // 获取头像
+  const getAvatar = (gender: 'male' | 'female', isEmperor: boolean) => {
+    if (isEmperor) {
+      return gender === 'male' ? kingImage : queenImage;
+    } else {
+      return gender === 'male' ? boyImage : girlImage;
+    }
+  };
+
+  const emperorAvatar = emperorInfo ? getAvatar(emperorInfo.gender, true) : kingImage;
+  const ministerAvatar = ministerInfo ? getAvatar(ministerInfo.gender, false) : boyImage;
+
   return (
     <div className="log-modal-overlay">
-      <div className="log-modal-container">
-        {/* 标题 */}
-        <div className="log-modal-header">
-          <h2>📜 皇帝的毒舌日志</h2>
-          <p className="log-modal-subtitle">你有 {logs.length} 条未查看的日志，必须全部查看才能继续游戏</p>
-        </div>
+      <div className="log-modal-edict-container">
+        {/* 圣旨背景 */}
+        <img src={shengzhiImage} alt="圣旨" className="edict-background" />
+        
+        {/* 内容区域 */}
+        <div className="edict-content-wrapper">
+          {/* 左侧：皇帝信息 */}
+          <div className="edict-emperor-section">
+            <img src={emperorAvatar} alt="皇帝" className="edict-avatar" />
+            <div className="edict-name-vertical">{emperorInfo?.nickname || '皇上'}</div>
+          </div>
 
-        {/* 日志内容 */}
-        <div className="log-modal-content">
-          <div className="log-message-box">
-            <p className="log-message">{currentLog.log_message}</p>
+          {/* 中间：日志内容（竖排文字） */}
+          <div className="edict-message-section">
+            <div className="edict-message-vertical">
+              {currentLog.log_message}
+            </div>
+          </div>
+
+          {/* 右侧：大臣信息 */}
+          <div className="edict-minister-section">
+            <img src={ministerAvatar} alt="大臣" className="edict-avatar" />
+            <div className="edict-name-vertical">{ministerInfo?.nickname || '大臣'}</div>
           </div>
         </div>
 
-        {/* 导航栏 */}
-        <div className="log-modal-navigation">
+        {/* 导航控制 */}
+        <div className="edict-navigation">
           <button
-            className="log-nav-button"
+            className="edict-nav-button"
             onClick={handlePrev}
             disabled={isFirst}
           >
             ← 上一条
           </button>
 
-          <span className="log-progress">
+          <span className="edict-progress">
             {currentIndex + 1} / {logs.length}
           </span>
 
           <button
-            className="log-nav-button"
+            className="edict-nav-button"
             onClick={handleNext}
             disabled={isLast}
           >
@@ -82,13 +125,13 @@ export const LogModal: React.FC<LogModalProps> = ({ logs, onConfirm, isOpen }) =
         </div>
 
         {/* 确认按钮 */}
-        <div className="log-modal-footer">
+        <div className="edict-footer">
           <button
-            className="log-confirm-button"
+            className="edict-confirm-button"
             onClick={handleConfirm}
             disabled={!isLast}
           >
-            {isLast ? `✅ 确认 (${logs.length} 条日志已全部查看)` : `查看更多日志... (${currentIndex + 1}/${logs.length})`}
+            {isLast ? `朕已阅 (${logs.length}/${logs.length})` : `继续阅读 (${currentIndex + 1}/${logs.length})`}
           </button>
         </div>
       </div>

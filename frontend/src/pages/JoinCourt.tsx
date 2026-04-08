@@ -188,19 +188,27 @@ export default function JoinCourt() {
           <h3 className="text-2xl font-bold text-amber-300 mb-6 text-chinese-title text-center" style={{ textShadow: '0 0 20px rgba(251, 191, 36, 0.8), 0 4px 12px rgba(0,0,0,0.9)' }}>
             选择你要加入的部门
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* 九宫格部门选择 */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
             {DEPARTMENTS.map((dept) => (
               <button
                 key={dept.id}
                 onClick={() => setSelectedDepartment(dept.id)}
-                className={`p-6 rounded-xl text-center transition-all transform hover:scale-110 ${
+                className={`p-4 rounded-2xl border-2 transition-all transform hover:scale-105 backdrop-blur-sm ${
                   selectedDepartment === dept.id
-                    ? 'bg-gradient-to-br from-amber-500/60 to-orange-500/60 shadow-2xl scale-110 border-2 border-amber-300'
-                    : 'bg-black/40 hover:bg-black/50 border-2 border-amber-500/30'
+                    ? 'bg-white/40 border-amber-400 shadow-xl'
+                    : 'bg-gray-400/30 border-gray-300/50 hover:bg-gray-300/40 shadow-md'
                 }`}
               >
-                <div className="font-bold text-amber-200 mb-2 text-xl text-chinese-title" style={{ textShadow: '0 0 10px rgba(251, 191, 36, 0.6), 0 2px 8px rgba(0,0,0,0.9)' }}>{dept.name}</div>
-                <p className="text-amber-100 text-chinese-elegant" style={{ textShadow: '0 0 8px rgba(251, 191, 36, 0.4), 0 2px 8px rgba(0,0,0,0.9)' }}>{dept.desc}</p>
+                <div className="text-center">
+                  <div className="font-bold text-amber-300 mb-1 text-xl text-chinese-title" style={{ textShadow: '0 0 10px rgba(251, 191, 36, 0.8), 0 2px 4px rgba(0,0,0,0.8)' }}>
+                    {dept.name}
+                  </div>
+                  <p className="text-amber-100 text-sm text-chinese-elegant font-medium" style={{ textShadow: '0 0 8px rgba(251, 191, 36, 0.6), 0 2px 4px rgba(0,0,0,0.8)' }}>
+                    {dept.desc}
+                  </p>
+                </div>
               </button>
             ))}
           </div>

@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import axios from 'axios';
 
-// 导入图片资源
 import boyImage from '../recourse/boy.png';
 import girlImage from '../recourse/girl.png';
 import bgImage from '../recourse/bg.png';
+
+const API_BASE = 'https://backend-production-a216.up.railway.app';
 
 export default function SelectGender() {
   const navigate = useNavigate();
@@ -15,11 +15,9 @@ export default function SelectGender() {
   const [selectedGender, setSelectedGender] = useState<'male' | 'female'>('male');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // 从 URL 参数获取 courtId
   const courtId = searchParams.get('courtId');
 
   useEffect(() => {
-    // 如果没有 courtId，跳转到首页
     if (!courtId) {
       navigate('/');
     }
@@ -30,17 +28,15 @@ export default function SelectGender() {
     
     setIsSubmitting(true);
     try {
-      await axios.patch(
-        `/api/users/court-member/${courtId}/${user!.id}/gender`,
-        { gender: selectedGender },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      await fetch(`${API_BASE}/api/users/court-member/${courtId}/${user!.id}/gender`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ gender: selectedGender }),
+      });
       
-      // 在 URL 中添加标记，表示刚刚完成性别选择
       navigate(`/?gender_updated=true`, { replace: true });
     } catch (error) {
       console.error('更新性别失败:', error);
@@ -59,49 +55,53 @@ export default function SelectGender() {
         backgroundPosition: 'center',
       }}
     >
-      <div className="max-w-2xl w-full">
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 text-center">
-          <h1 className="text-4xl font-bold text-amber-900 mb-3">
-            👑 选择你的身份
+      <div className="max-w-md w-full">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8">
+          <h1 className="text-4xl font-bold text-amber-900 mb-3 text-center">
+            重生转世
           </h1>
-          <p className="text-gray-600 mb-8 text-lg">
+          <p className="text-gray-600 mb-8 text-center">
             选择你在朝堂中的形象
           </p>
 
-          <div className="grid grid-cols-2 gap-8 mb-8">
-            <button
-              onClick={() => setSelectedGender('male')}
-              className={`p-8 rounded-2xl border-4 transition-all transform hover:scale-105 ${
-                selectedGender === 'male'
-                  ? 'border-amber-600 bg-amber-50 shadow-xl'
-                  : 'border-gray-200 hover:border-amber-300 bg-white'
-              }`}
+          <div className="mb-6">
+            <label className="block text-amber-900 font-bold mb-3 text-lg">
+              选择性别
+            </label>
+            <select
+              value={selectedGender}
+              onChange={(e) => setSelectedGender(e.target.value as 'male' | 'female')}
+              className="w-full px-4 py-3 text-lg border-2 border-amber-300 rounded-xl focus:outline-none focus:border-amber-500 bg-white text-amber-900 font-medium"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23b45309'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'right 0.75rem center',
+                backgroundSize: '1.5em 1.5em',
+                paddingRight: '2.5rem',
+                appearance: 'none',
+              }}
             >
-              <img 
-                src={boyImage} 
-                alt="皇上" 
-                className="w-48 h-48 mx-auto mb-4 object-contain"
-              />
-              <div className="font-bold text-2xl text-amber-900">皇上</div>
-              <div className="text-sm text-gray-600 mt-2">男性形象</div>
-            </button>
+              <option value="male">皇上（男性形象）</option>
+              <option value="female">皇后（女性形象）</option>
+            </select>
+          </div>
 
-            <button
-              onClick={() => setSelectedGender('female')}
-              className={`p-8 rounded-2xl border-4 transition-all transform hover:scale-105 ${
-                selectedGender === 'female'
-                  ? 'border-pink-600 bg-pink-50 shadow-xl'
-                  : 'border-gray-200 hover:border-pink-300 bg-white'
-              }`}
-            >
+          <div className="mb-6 p-4 bg-amber-50 rounded-xl border-2 border-amber-200">
+            <div className="flex items-center justify-center">
               <img 
-                src={girlImage} 
-                alt="皇后" 
-                className="w-48 h-48 mx-auto mb-4 object-contain"
+                src={selectedGender === 'male' ? boyImage : girlImage}
+                alt={selectedGender === 'male' ? '皇上' : '皇后'}
+                className="w-32 h-32 object-contain"
               />
-              <div className="font-bold text-2xl text-pink-900">皇后</div>
-              <div className="text-sm text-gray-600 mt-2">女性形象</div>
-            </button>
+            </div>
+            <div className="text-center mt-3">
+              <div className="font-bold text-xl text-amber-900">
+                {selectedGender === 'male' ? '皇上' : '皇后'}
+              </div>
+              <div className="text-sm text-gray-600 mt-1">
+                {selectedGender === 'male' ? '男性形象' : '女性形象'}
+              </div>
+            </div>
           </div>
 
           <button

@@ -18,14 +18,18 @@ router.post('/generate', async (req, res) => {
     }
 
     // 从数据库获取用户的 access_token
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('secondme_access_token')
-      .eq('id', userId)
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('user_tokens')
+      .select('access_token')
+      .eq('user_id', userId)
       .single();
 
-    if (userError || !userData?.secondme_access_token) {
-      return res.status(401).json({ error: '用户未授权或未设置语音' });
+    if (tokenError || !tokenData?.access_token) {
+      return res.status(401).json({ 
+        error: 'TTS_NOT_CONFIGURED',
+        message: '该用户尚未配置语音功能',
+        needsConfiguration: true
+      });
     }
 
     // 调用 SecondMe TTS API
@@ -37,7 +41,7 @@ router.post('/generate', async (req, res) => {
       },
       {
         headers: {
-          'Authorization': `Bearer ${userData.secondme_access_token}`,
+          'Authorization': `Bearer ${tokenData.access_token}`,
           'Content-Type': 'application/json',
         },
       }
@@ -45,9 +49,27 @@ router.post('/generate', async (req, res) => {
 
     res.json(response.data);
   } catch (error: any) {
+    const errorMessage = error.response?.data?.message || error.message || '';
+    const isVoiceNotConfigured = 
+      errorMessage.includes('voice') || 
+      errorMessage.includes('语音') ||
+      errorMessage.includes('TTS') ||
+      error.response?.status === 403;
+    
+    if (isVoiceNotConfigured) {
+      console.log('TTS 未配置: 用户尚未在 SecondMe 配置语音功能');
+      return res.status(403).json({ 
+        error: 'TTS_NOT_CONFIGURED',
+        message: '该用户尚未在 SecondMe 配置语音功能',
+        needsConfiguration: true,
+        configUrl: 'https://second-me.cn/settings/voice'
+      });
+    }
+    
     console.error('TTS 生成失败:', error.response?.data || error.message);
     res.status(500).json({ 
-      error: 'TTS 生成失败', 
+      error: 'TTS_GENERATION_FAILED',
+      message: 'TTS 生成失败', 
       details: error.response?.data || error.message 
     });
   }

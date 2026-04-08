@@ -45,9 +45,9 @@ export default function Login() {
   }, [searchParams, setAuth, navigate, isAuthenticated, isProcessing]);
 
   const handleLogin = () => {
-    // 传递当前的 frontend URL，这样回调时可以重定向回正确的地址
     const frontendUrl = window.location.origin;
-    window.location.href = `/api/auth/secondme/login?frontend_url=${encodeURIComponent(frontendUrl)}`;
+    const backendUrl = 'https://backend-production-a216.up.railway.app';
+    window.location.href = `${backendUrl}/api/auth/secondme/login?frontend_url=${encodeURIComponent(frontendUrl)}`;
   };
 
   if (isProcessing) {

@@ -296,11 +296,21 @@ router.get('/:id/available-bots', async (req, res) => {
     const memberIds = currentMembers?.map(m => m.user_id) || [];
     
     // 获取所有用户，排除当前朝堂的成员
-    const { data: availableUsers } = await supabase
+    let query = supabase
       .from('users')
-      .select('id, nickname, avatar_url')
-      .not('id', 'in', `(${memberIds.join(',')})`)
-      .limit(20); // 最多显示 20 个
+      .select('id, nickname, avatar, bio');
+    
+    // 如果有成员，排除他们
+    if (memberIds.length > 0) {
+      query = query.not('id', 'in', `(${memberIds.join(',')})`);
+    }
+    
+    const { data: availableUsers, error } = await query.limit(20);
+    
+    if (error) {
+      logger.error('Query available users error:', error);
+      throw error;
+    }
     
     res.json({
       code: 0,
