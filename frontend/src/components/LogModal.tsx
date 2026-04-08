@@ -81,17 +81,35 @@ export const LogModal: React.FC<LogModalProps> = ({
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
-      // 允许 10px 的误差
-      if (scrollTop + clientHeight >= scrollHeight - 10) {
+      // 允许 20px 的误差，更宽松的判断
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 20;
+      if (isAtBottom) {
         setHasScrolledToBottom(true);
       }
     };
 
     container.addEventListener('scroll', handleScroll);
+    
     // 初始检查是否已经在底部（内容较少时）
-    handleScroll();
+    // 使用 setTimeout 确保内容已经渲染完成
+    const checkInitialScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 20;
+      if (isAtBottom) {
+        setHasScrolledToBottom(true);
+      }
+    };
+    
+    // 立即检查一次
+    checkInitialScroll();
+    
+    // 延迟检查，确保内容已渲染
+    const timer = setTimeout(checkInitialScroll, 100);
 
-    return () => container.removeEventListener('scroll', handleScroll);
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      clearTimeout(timer);
+    };
   }, [isOpen, logs.length]);
 
   // 重置滚动状态
