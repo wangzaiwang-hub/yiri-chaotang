@@ -125,25 +125,30 @@ router.post('/', async (req, res) => {
     
     if (error) throw error;
     
-    // 获取大臣的用户名（用于日志）
-    const { data: assigneeUser } = await supabase
-      .from('users')
-      .select('nickname')
-      .eq('id', assignee_id)
-      .single();
-    
-    const ministerName = assigneeUser?.nickname || '大臣';
-    
-    // 创建任务分配日志
-    await sarcasmLogsService.logTaskAssignment(
-      court_id,
-      assignee_id,
-      ministerName,
-      title,
-      task.id
-    );
-    
-    logger.info(`📝 创建任务分配日志: ${ministerName} - ${title}`);
+    // 尝试创建任务分配日志（失败不影响任务创建）
+    try {
+      // 获取大臣的用户名（用于日志）
+      const { data: assigneeUser } = await supabase
+        .from('users')
+        .select('nickname')
+        .eq('id', assignee_id)
+        .single();
+      
+      const ministerName = assigneeUser?.nickname || '大臣';
+      
+      // 创建任务分配日志
+      await sarcasmLogsService.logTaskAssignment(
+        court_id,
+        assignee_id,
+        ministerName,
+        title,
+        task.id
+      );
+      
+      logger.info(`📝 创建任务分配日志: ${ministerName} - ${title}`);
+    } catch (logError) {
+      logger.error('创建任务分配日志失败:', logError);
+    }
     
     // 获取大臣的 token（用于调用大臣的虚拟人）
     const { data: assigneeToken } = await supabase
@@ -813,26 +818,31 @@ router.post('/:id/approve', async (req, res) => {
       return res.status(404).json({ error: 'Task not found' });
     }
     
-    // 获取大臣的用户名（用于日志）
-    const { data: assigneeUser } = await supabase
-      .from('users')
-      .select('nickname')
-      .eq('id', task.assignee_id)
-      .single();
-    
-    const ministerName = assigneeUser?.nickname || '大臣';
-    
-    // 创建任务成功日志（准奏）
-    await sarcasmLogsService.logTaskSuccess(
-      task.court_id,
-      task.assignee_id,
-      ministerName,
-      task.title,
-      task.id,
-      85 // 准奏默认给 85 分
-    );
-    
-    logger.info(`📝 创建任务成功日志: ${ministerName} - ${task.title}`);
+    // 尝试创建任务成功日志（失败不影响批准流程）
+    try {
+      // 获取大臣的用户名（用于日志）
+      const { data: assigneeUser } = await supabase
+        .from('users')
+        .select('nickname')
+        .eq('id', task.assignee_id)
+        .single();
+      
+      const ministerName = assigneeUser?.nickname || '大臣';
+      
+      // 创建任务成功日志（准奏）
+      await sarcasmLogsService.logTaskSuccess(
+        task.court_id,
+        task.assignee_id,
+        ministerName,
+        task.title,
+        task.id,
+        85 // 准奏默认给 85 分
+      );
+      
+      logger.info(`📝 创建任务成功日志: ${ministerName} - ${task.title}`);
+    } catch (logError) {
+      logger.error('创建任务成功日志失败:', logError);
+    }
     
     // 获取大臣的 token
     const { data: assigneeToken } = await supabase
@@ -1022,26 +1032,31 @@ router.post('/:id/reject', async (req, res) => {
       return res.status(404).json({ error: 'Task not found' });
     }
     
-    // 获取大臣的用户名（用于日志）
-    const { data: assigneeUser } = await supabase
-      .from('users')
-      .select('nickname')
-      .eq('id', task.assignee_id)
-      .single();
-    
-    const ministerName = assigneeUser?.nickname || '大臣';
-    
-    // 创建任务失败日志（驳回）
-    await sarcasmLogsService.logTaskFailure(
-      task.court_id,
-      task.assignee_id,
-      ministerName,
-      task.title,
-      task.id,
-      40 // 驳回默认给 40 分
-    );
-    
-    logger.info(`📝 创建任务失败日志: ${ministerName} - ${task.title}`);
+    // 尝试创建任务失败日志（失败不影响驳回流程）
+    try {
+      // 获取大臣的用户名（用于日志）
+      const { data: assigneeUser } = await supabase
+        .from('users')
+        .select('nickname')
+        .eq('id', task.assignee_id)
+        .single();
+      
+      const ministerName = assigneeUser?.nickname || '大臣';
+      
+      // 创建任务失败日志（驳回）
+      await sarcasmLogsService.logTaskFailure(
+        task.court_id,
+        task.assignee_id,
+        ministerName,
+        task.title,
+        task.id,
+        40 // 驳回默认给 40 分
+      );
+      
+      logger.info(`📝 创建任务失败日志: ${ministerName} - ${task.title}`);
+    } catch (logError) {
+      logger.error('创建任务失败日志失败:', logError);
+    }
     
     // 获取大臣的 token
     const { data: assigneeToken } = await supabase
@@ -1626,18 +1641,23 @@ router.post('/punish-minister', async (req, res) => {
       'social_death' // 社死类型惩罚
     );
     
-    // 获取大臣的昵称（用于日志）
-    const ministerNickname = minister?.nickname || '大臣';
-    
-    // 创建惩罚日志
-    await sarcasmLogsService.logPunishment(
-      court_id,
-      minister_id,
-      ministerNickname,
-      'public' // 公开羞辱类型
-    );
-    
-    logger.info(`📝 创建惩罚日志: ${ministerNickname}`);
+    // 尝试创建惩罚日志（失败不影响惩罚流程）
+    try {
+      // 获取大臣的昵称（用于日志）
+      const ministerNickname = minister?.nickname || '大臣';
+      
+      // 创建惩罚日志
+      await sarcasmLogsService.logPunishment(
+        court_id,
+        minister_id,
+        ministerNickname,
+        'public' // 公开羞辱类型
+      );
+      
+      logger.info(`📝 创建惩罚日志: ${ministerNickname}`);
+    } catch (logError) {
+      logger.error('创建惩罚日志失败:', logError);
+    }
     
     res.json({
       code: 0,
