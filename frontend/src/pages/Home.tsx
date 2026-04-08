@@ -22,6 +22,14 @@ import cardFrontImage from '../recourse/card_front.png';
 import qiuraoGif from '../recourse/qiurao.gif';
 import jiantaoImage from '../recourse/jiantao.png';
 
+// 导入等级称号图片
+import level1Image from '../recourse/Level/1.png';
+import level2Image from '../recourse/Level/2.png';
+import level3Image from '../recourse/Level/3.png';
+import level4Image from '../recourse/Level/4.png';
+import level5Image from '../recourse/Level/5.png';
+import level6Image from '../recourse/Level/6.png';
+
 // 导入国家场景图片
 import huaxiaScene from '../recourse/Country/huaxia.jpg';
 import dongyingScene from '../recourse/Country/dongying.jpg';
@@ -140,6 +148,16 @@ export default function Home() {
   const [audioReady, setAudioReady] = useState(false); // 音频已准备好但未播放
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false); // 正在生成音频
   const audioEndPromiseRef = useRef<((value: void) => void) | null>(null); // 用于等待音频结束
+  
+  // 根据怨气值获取等级称号图片
+  const getLevelImage = (grudgeValue: number): string => {
+    if (grudgeValue >= 100) return level6Image; // 超凡入圣
+    if (grudgeValue >= 80) return level5Image;  // 登峰造极
+    if (grudgeValue >= 60) return level4Image;  // 炉火纯青
+    if (grudgeValue >= 40) return level3Image;  // 渐入佳境
+    if (grudgeValue >= 20) return level2Image;  // 小有"成就"
+    return level1Image;                          // 初入朝堂
+  };
   
   // 手动播放音频
   const manualPlayAudio = async () => {
@@ -2315,6 +2333,19 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+                
+                {/* 等级称号 - 显示在大臣头像上方，z-index 低于气泡 */}
+                <div className="absolute z-10 pointer-events-none" style={{ 
+                  top: '-25px',
+                  left: '50%',
+                  transform: 'translateX(-50%)'
+                }}>
+                  <img
+                    src={getLevelImage(minister.grudge_value || 0)}
+                    alt="等级称号"
+                    className="w-80 h-auto object-contain drop-shadow-lg"
+                  />
+                </div>
                 
                 {/* 大臣的回复气泡 - 只在有回复且是当前任务的大臣时显示 */}
                 {tasks.length > 0 && displayedTasks[0]?.displayResult && displayedTasks[0]?.assignee_id === minister.user_id && (
