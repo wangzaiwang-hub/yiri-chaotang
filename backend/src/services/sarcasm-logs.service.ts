@@ -207,13 +207,35 @@ export async function logTaskAssignment(
   taskName: string,
   taskId: string
 ): Promise<void> {
-  const sarcasticMessages = [
-    `皇帝让${ministerName}去${taskName}，${ministerName}连屁都不敢放，乖乖接受了`,
-    `皇帝让${ministerName}去${taskName}，${ministerName}虽然很不情愿，但还是接受了`,
-    `皇帝让${ministerName}去${taskName}，${ministerName}战战兢兢地接受了，生怕拒绝`
-  ];
+  // 判断是任务还是对话
+  const isTask = taskName.includes('写') || taskName.includes('做') || taskName.includes('完成') || 
+                 taskName.includes('准备') || taskName.includes('整理') || taskName.includes('分析') ||
+                 taskName.includes('报告') || taskName.includes('方案') || taskName.includes('计划');
+  
+  let message: string;
+  
+  if (isTask) {
+    // 任务类型的讽刺消息
+    const taskMessages = [
+      `皇帝让${ministerName}去${taskName}，${ministerName}连屁都不敢放，乖乖接受了`,
+      `皇帝让${ministerName}去${taskName}，${ministerName}虽然很不情愿，但还是接受了`,
+      `皇帝让${ministerName}去${taskName}，${ministerName}战战兢兢地接受了，生怕拒绝`,
+      `皇帝吩咐${ministerName}${taskName}，${ministerName}只能硬着头皮答应了`,
+      `皇帝命令${ministerName}${taskName}，${ministerName}心里一万个不愿意，但还是接了`
+    ];
+    message = taskMessages[Math.floor(Math.random() * taskMessages.length)];
+  } else {
+    // 对话类型的讽刺消息
+    const chatMessages = [
+      `皇帝对${ministerName}说："${taskName}"，${ministerName}只能唯唯诺诺地听着`,
+      `皇帝跟${ministerName}说了句"${taskName}"，${ministerName}连大气都不敢出`,
+      `皇帝："${taskName}"，${ministerName}听了只能点头哈腰`,
+      `皇帝对${ministerName}说："${taskName}"，${ministerName}战战兢兢地回应`,
+      `皇帝说："${taskName}"，${ministerName}吓得赶紧表态`
+    ];
+    message = chatMessages[Math.floor(Math.random() * chatMessages.length)];
+  }
 
-  const message = sarcasticMessages[Math.floor(Math.random() * sarcasticMessages.length)];
   const logMessage = `[${new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' })}] ${message}`;
 
   await createSarcasmLog(courtId, ministerId, 'task_assigned', logMessage, {
@@ -233,10 +255,13 @@ export async function logTaskFailure(
   taskId: string,
   score: number
 ): Promise<void> {
+  // 驳回的讽刺消息更狠一些
   const failureMessages = [
-    `${ministerName}${taskName}失败了，${score}分的成绩，皇帝看了一眼就摇头了`,
-    `${ministerName}${taskName}失败了，${score}分的成绩，皇帝说'这都写不好？'`,
-    `${ministerName}${taskName}失败了，${score}分的成绩，皇帝直接打回了`
+    `${ministerName}的"${taskName}"被驳回了，${score}分的成绩，皇帝看了一眼就摇头了`,
+    `${ministerName}"${taskName}"做得一塌糊涂，${score}分，皇帝说"这都写不好？"`,
+    `${ministerName}的"${taskName}"被打回重做，${score}分，皇帝直接扔到一边了`,
+    `${ministerName}"${taskName}"不合格，${score}分，皇帝说"重新做！"`,
+    `${ministerName}的"${taskName}"被驳回，${score}分，皇帝说"就这水平？"`
   ];
 
   const message = failureMessages[Math.floor(Math.random() * failureMessages.length)];
@@ -260,13 +285,32 @@ export async function logTaskSuccess(
   taskId: string,
   score: number
 ): Promise<void> {
-  const successMessages = [
-    `${ministerName}${taskName}成功了，${score}分的成绩，皇帝勉强点了点头`,
-    `${ministerName}${taskName}成功了，${score}分的成绩，皇帝说'还不错'`,
-    `${ministerName}${taskName}成功了，${score}分的成绩，皇帝说'可以接受'`
-  ];
+  // 根据分数生成不同的讽刺消息
+  let message: string;
+  
+  if (score >= 90) {
+    const excellentMessages = [
+      `${ministerName}的"${taskName}"居然做得还不错，${score}分，皇帝难得地点了点头`,
+      `${ministerName}这次"${taskName}"表现出人意料，${score}分，皇帝说"还算有点用"`,
+      `${ministerName}"${taskName}"完成得挺好，${score}分，皇帝罕见地露出了笑容`
+    ];
+    message = excellentMessages[Math.floor(Math.random() * excellentMessages.length)];
+  } else if (score >= 80) {
+    const goodMessages = [
+      `${ministerName}"${taskName}"完成了，${score}分，皇帝勉强点了点头`,
+      `${ministerName}的"${taskName}"得了${score}分，皇帝说"还行吧"`,
+      `${ministerName}"${taskName}"做完了，${score}分，皇帝说"可以接受"`
+    ];
+    message = goodMessages[Math.floor(Math.random() * goodMessages.length)];
+  } else {
+    const okMessages = [
+      `${ministerName}"${taskName}"总算完成了，${score}分，皇帝看了一眼就放下了`,
+      `${ministerName}的"${taskName}"得了${score}分，皇帝说"凑合吧"`,
+      `${ministerName}"${taskName}"做完了，${score}分，皇帝没说什么就批准了`
+    ];
+    message = okMessages[Math.floor(Math.random() * okMessages.length)];
+  }
 
-  const message = successMessages[Math.floor(Math.random() * successMessages.length)];
   const logMessage = `[${new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' })}] ${message}`;
 
   await createSarcasmLog(courtId, ministerId, 'task_success', logMessage, {
