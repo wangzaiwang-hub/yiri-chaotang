@@ -4,6 +4,7 @@ import { secondMeService } from '../services/secondme.service';
 import { grudgeService } from '../services/grudge.service';
 import { logger } from '../utils/logger';
 import { wsService } from '../lib/websocket';
+import * as sarcasmLogsService from '../services/sarcasm-logs.service';
 
 const router = express.Router();
 
@@ -123,6 +124,26 @@ router.post('/', async (req, res) => {
       .single();
     
     if (error) throw error;
+    
+    // 获取大臣的用户名（用于日志）
+    const { data: assigneeUser } = await supabase
+      .from('users')
+      .select('nickname')
+      .eq('id', assignee_id)
+      .single();
+    
+    const ministerName = assigneeUser?.nickname || '大臣';
+    
+    // 创建任务分配日志
+    await sarcasmLogsService.logTaskAssignment(
+      court_id,
+      assignee_id,
+      ministerName,
+      title,
+      task.id
+    );
+    
+    logger.info(`📝 创建任务分配日志: ${ministerName} - ${title}`);
     
     // 获取大臣的 token（用于调用大臣的虚拟人）
     const { data: assigneeToken } = await supabase
@@ -792,6 +813,27 @@ router.post('/:id/approve', async (req, res) => {
       return res.status(404).json({ error: 'Task not found' });
     }
     
+    // 获取大臣的用户名（用于日志）
+    const { data: assigneeUser } = await supabase
+      .from('users')
+      .select('nickname')
+      .eq('id', task.assignee_id)
+      .single();
+    
+    const ministerName = assigneeUser?.nickname || '大臣';
+    
+    // 创建任务成功日志（准奏）
+    await sarcasmLogsService.logTaskSuccess(
+      task.court_id,
+      task.assignee_id,
+      ministerName,
+      task.title,
+      task.id,
+      85 // 准奏默认给 85 分
+    );
+    
+    logger.info(`📝 创建任务成功日志: ${ministerName} - ${task.title}`);
+    
     // 获取大臣的 token
     const { data: assigneeToken } = await supabase
       .from('user_tokens')
@@ -979,6 +1021,27 @@ router.post('/:id/reject', async (req, res) => {
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
     }
+    
+    // 获取大臣的用户名（用于日志）
+    const { data: assigneeUser } = await supabase
+      .from('users')
+      .select('nickname')
+      .eq('id', task.assignee_id)
+      .single();
+    
+    const ministerName = assigneeUser?.nickname || '大臣';
+    
+    // 创建任务失败日志（驳回）
+    await sarcasmLogsService.logTaskFailure(
+      task.court_id,
+      task.assignee_id,
+      ministerName,
+      task.title,
+      task.id,
+      40 // 驳回默认给 40 分
+    );
+    
+    logger.info(`📝 创建任务失败日志: ${ministerName} - ${task.title}`);
     
     // 获取大臣的 token
     const { data: assigneeToken } = await supabase
@@ -1390,6 +1453,212 @@ ${newGrudge < 30 ? '（你心情还不错）' : newGrudge < 60 ? '（你开始�
   } catch (error) {
     logger.error('Evaluate minister error:', error);
     res.status(500).json({ error: 'Failed to evaluate minister' });
+  }
+});
+
+/**
+ * 惩罚大臣 - 让大臣在 Plaza 发布羞耻言论
+ */
+router.post('/:id/punish', async (req, res) => {
+  const { id } = req.params;
+  const { punishment_content } = req.body;
+  
+  try {
+    // 获取任务信息
+    const { data: task, error: taskError } = await supabase
+      .from('tasks')
+      .select(`
+        *,
+        assignee:users!tasks_assignee_id_fkey(*)
+      `)
+      .eq('id', id)
+      .single();
+    
+    if (taskError || !task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    // 获取大臣的 access token
+    const { data: assignee } = await supabase
+      .from('users')
+      .select('access_token')
+      .eq('id', task.assignee_id)
+      .single();
+    
+    if (!assignee?.access_token) {
+      return res.status(400).json({ error: 'Assignee access token not found' });
+    }
+    
+    // 调用 Plaza API 发布帖子
+    const plazaPost = await secondMeService.createPlazaPost(
+      assignee.access_token,
+      punishment_content,
+      'discussion'
+    );
+    
+    logger.info('Plaza post created:', plazaPost);
+    
+    // 增加怨气值（惩罚会增加怨气）
+    await grudgeService.addGrudgeForPunishment(
+      task.court_id,
+      task.assignee_id,
+      task.emperor_id,
+      'social_death' // 社死类型惩罚
+    );
+    
+    res.json({
+      code: 0,
+      message: 'Punishment executed successfully',
+      data: {
+        postId: plazaPost.postId
+      }
+    });
+  } catch (error: any) {
+    logger.error('Punish minister error:', error);
+    
+    // 检查是否是 Plaza 准入问题
+    if (error.response?.data?.error?.includes('invitation.required')) {
+      return res.status(403).json({ 
+        error: 'Plaza access required',
+        message: '该大臣尚未激活 Plaza 准入，无法发布帖子'
+      });
+    }
+    
+    res.status(500).json({ error: 'Failed to punish minister' });
+  }
+});
+
+/**
+ * 惩罚大臣 - 让大臣在 Plaza 发布羞耻言论（不依赖任务）
+ * AI 自动生成羞耻文案
+ */
+router.post('/punish-minister', async (req, res) => {
+  const { court_id, minister_id, emperor_id, punishment_task } = req.body;
+  
+  // 添加详细日志
+  logger.info('Punish minister request:', { court_id, minister_id, emperor_id, punishment_task });
+  
+  // 验证必需参数
+  if (!court_id || !minister_id || !emperor_id || !punishment_task) {
+    logger.error('Missing required parameters:', { court_id, minister_id, emperor_id, punishment_task });
+    return res.status(400).json({ 
+      error: 'Missing required parameters',
+      details: {
+        court_id: !!court_id,
+        minister_id: !!minister_id,
+        emperor_id: !!emperor_id,
+        punishment_task: !!punishment_task
+      }
+    });
+  }
+  
+  try {
+    // 获取大臣的 access token（从 user_tokens 表）
+    const { data: tokenData } = await supabase
+      .from('user_tokens')
+      .select('access_token')
+      .eq('user_id', minister_id)
+      .single();
+    
+    if (!tokenData?.access_token) {
+      logger.error('Minister access token not found for:', minister_id);
+      return res.status(400).json({ error: 'Minister access token not found' });
+    }
+    
+    // 获取大臣的昵称
+    const { data: minister } = await supabase
+      .from('users')
+      .select('nickname')
+      .eq('id', minister_id)
+      .single();
+    
+    // 使用 SecondMe AI 生成羞耻文案
+    logger.info('Generating punishment content with AI...');
+    const systemPrompt = `【游戏角色扮演】
+
+这是一个古风朝堂主题的轻松游戏。你正在扮演一位古代朝堂的大臣角色，在游戏中被皇上"惩罚"了。请以游戏角色的身份，在广场发布一条幽默的自我调侃帖子。
+
+游戏设定：
+- 这只是一个娱乐游戏，不是真实的惩罚
+- 语气要轻松幽默，带点自嘲
+- 使用古风文言文风格，但不要太严肃
+- 字数控制在 80-150 字
+- 不要使用 Markdown 格式
+
+游戏中的"惩罚原因"：${punishment_task}
+
+请以游戏角色的身份，写一段轻松幽默的自我调侃，直接输出内容即可，不要有任何前缀或解释。
+
+示例风格：
+"唉，今日被皇上点名批评，说我办事不力。想来也是，最近确实有些懈怠了。在此向皇上和诸位同僚道个歉，下次定当努力！"`;
+
+    const aiResponse = await secondMeService.executeTask(
+      tokenData.access_token,
+      systemPrompt,
+      undefined, // 不使用 session
+      undefined, // 不使用 department
+      false // 不使用工具
+    );
+    
+    // 收集 AI 生成的内容
+    let punishmentContent = '';
+    for await (const chunk of aiResponse) {
+      punishmentContent += chunk;
+    }
+    
+    punishmentContent = punishmentContent.trim();
+    logger.info('AI generated punishment content:', punishmentContent);
+    
+    // 调用 Plaza API 发布帖子
+    const plazaPost = await secondMeService.createPlazaPost(
+      tokenData.access_token,
+      punishmentContent,
+      'discussion'
+    );
+    
+    logger.info('Plaza post created:', plazaPost);
+    
+    // 增加怨气值（惩罚会增加怨气）
+    await grudgeService.addGrudgeForPunishment(
+      court_id,
+      minister_id,
+      emperor_id,
+      'social_death' // 社死类型惩罚
+    );
+    
+    // 获取大臣的昵称（用于日志）
+    const ministerNickname = minister?.nickname || '大臣';
+    
+    // 创建惩罚日志
+    await sarcasmLogsService.logPunishment(
+      court_id,
+      minister_id,
+      ministerNickname,
+      'public' // 公开羞辱类型
+    );
+    
+    logger.info(`📝 创建惩罚日志: ${ministerNickname}`);
+    
+    res.json({
+      code: 0,
+      message: 'Punishment executed successfully',
+      data: {
+        postId: plazaPost.postId,
+        content: punishmentContent // 返回生成的内容
+      }
+    });
+  } catch (error: any) {
+    logger.error('Punish minister error:', error);
+    
+    // 检查是否是 Plaza 准入问题
+    if (error.response?.data?.error?.includes('invitation.required')) {
+      return res.status(403).json({ 
+        error: 'Plaza access required',
+        message: '该大臣尚未激活 Plaza 准入，无法发布帖子'
+      });
+    }
+    
+    res.status(500).json({ error: 'Failed to punish minister' });
   }
 });
 

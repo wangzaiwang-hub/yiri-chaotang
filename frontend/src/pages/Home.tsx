@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
-import { courtAPI, taskAPI, fileAPI, ttsAPI, boredAPI, whisperAPI, territoryAPI } from '../services/api';
+import { courtAPI, taskAPI, fileAPI, ttsAPI, boredAPI, whisperAPI, territoryAPI, logsAPI } from '../services/api';
 import { useState, useEffect, useRef } from 'react';
+import { LogModal } from '../components/LogModal';
 
 // 导入图片资源
 import bgImage from '../recourse/bg.png';
@@ -98,6 +99,10 @@ export default function Home() {
   // 性别选择相关状态
   const [showGenderModal, setShowGenderModal] = useState(false);
   const [selectedGender, setSelectedGender] = useState<'male' | 'female'>('male');
+  
+  // 日志相关状态
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [unviewedLogs, setUnviewedLogs] = useState<any[]>([]);
   const [isSubmittingGender, setIsSubmittingGender] = useState(false);
   
   // 重生转世下拉列表状态
@@ -123,7 +128,6 @@ export default function Home() {
   
   // 征战视频相关状态
   const [showConquestVideo, setShowConquestVideo] = useState(false);
-  const [isConquesting, setIsConquesting] = useState(false);
   
   // 幸福值系统
   const [happiness, setHappiness] = useState<number>(0);
@@ -284,13 +288,12 @@ export default function Home() {
             console.log('🔊 play() Promise 完成');
             // 不在这里 resolve，等待 onplay 事件
           } catch (playError: any) {
-            console.error('🔊 播放被阻止:', playError);
+            console.log('🔊 自动播放被浏览器阻止，显示手动播放按钮');
             
             if (playError.name === 'NotAllowedError') {
-              console.log('🔊 浏览器阻止了自动播放，显示手动播放按钮');
               setIsPlayingAudio(false);
               setAudioReady(true);
-              showToast('点击播放按钮收听语音', 'error');
+              showToast('点击播放按钮收听语音', 'success');
               
               // 自动播放被阻止，调用等待的 resolve
               if (audioEndPromiseRef.current) {
@@ -308,23 +311,19 @@ export default function Home() {
             }
           }
         } else {
-          console.warn('🔊 TTS API 未返回音频 URL');
+          console.log('🔊 TTS API 未返回音频 URL，静默处理');
           setIsPlayingAudio(false);
           setAudioReady(false);
-          showToast('语音生成失败', 'error');
           resolve(false);
         }
       } catch (error: any) {
-        console.error('🔊 TTS 生成失败:', error);
-        console.error('🔊 错误详情:', {
-          message: error.message,
-          response: error.response?.data,
-          status: error.response?.status
-        });
         setIsGeneratingAudio(false);
         setIsPlayingAudio(false);
         setAudioReady(false);
-        showToast('语音生成失败', 'error');
+        
+        // 静默处理所有 TTS 错误，不显示任何提示
+        console.log('🔊 TTS 生成失败，静默处理');
+        
         resolve(false);
       }
     });
@@ -545,6 +544,22 @@ export default function Home() {
     setTimeout(() => setToast(null), 3000);
   };
   
+  // 日志确认函数
+  const handleLogConfirm = async () => {
+    if (!currentCourt?.id || !user?.id || unviewedLogs.length === 0) return;
+    
+    try {
+      const logIds = unviewedLogs.map(log => log.id);
+      await logsAPI.markAsViewed(currentCourt.id, user.id, logIds);
+      setShowLogModal(false);
+      setUnviewedLogs([]);
+      showToast('日志已查看');
+    } catch (error) {
+      console.error('标记日志为已查看失败:', error);
+      showToast('标记日志失败', 'error');
+    }
+  };
+  
   // TTS 播放函数
   const { data: courts, refetch: refetchCourts } = useQuery({
     queryKey: ['courts', user?.id],
@@ -565,7 +580,7 @@ export default function Home() {
       localStorage.setItem('currentCourtId', currentCourt.id);
       setCurrentCourtId(currentCourt.id);
     }
-  }, [currentCourt?.id, currentCourtId]);
+  }, [currentCourt?.id]); // 移除 currentCourtId 避免无限循环
 
   const { data: tasksRes, refetch: refetchTasks } = useQuery({
     queryKey: ['tasks', currentCourt?.id],
@@ -581,13 +596,17 @@ export default function Home() {
   useEffect(() => {
     if (!currentCourt || !user) return;
 
-    // 直接连接到后端 WebSocket
-    const wsUrl = 'wss://backend-production-a216.up.railway.app/ws';
+    // 使用环境变量中的 API URL，转换为 WebSocket URL
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const wsUrl = apiUrl.replace(/^http/, 'ws') + '/ws';
+    
+    console.log('🔌 WebSocket 连接地址:', wsUrl);
     
     const websocket = new WebSocket(wsUrl);
     wsRef.current = websocket;
 
     websocket.onopen = () => {
+      console.log('🔌 WebSocket 已连接');
       // 加入朝堂
       const joinMessage = {
         type: 'join',
@@ -607,11 +626,11 @@ export default function Home() {
     };
 
     websocket.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      console.error('🔌 WebSocket 错误:', error);
     };
 
     websocket.onclose = () => {
-      // WebSocket 已断开
+      console.log('🔌 WebSocket 已断开');
       wsRef.current = null;
     };
 
@@ -957,6 +976,47 @@ export default function Home() {
   const ministers = ranking.filter((m: any) => m.role === 'minister');
   const isEmperor = emperor?.user_id === user?.id;
   
+  // 检查未查看的日志（只在大臣端触发）
+  useEffect(() => {
+    const checkUnviewedLogs = async () => {
+      console.log('🔍 检查未查看日志...', {
+        courtId: currentCourt?.id,
+        userId: user?.id,
+        isEmperor,
+        hasRanking: ranking.length > 0
+      });
+
+      // 只有大臣才检查日志
+      if (!currentCourt?.id || !user?.id || isEmperor) {
+        console.log('⏭️ 跳过日志检查:', {
+          hasCourt: !!currentCourt?.id,
+          hasUser: !!user?.id,
+          isEmperor
+        });
+        return;
+      }
+      
+      try {
+        console.log('📡 调用 API 获取未查看日志...');
+        const response = await logsAPI.getUnviewed(currentCourt.id, user.id);
+        console.log('✅ API 响应:', response.data);
+        
+        if (response.data.unviewedLogs && response.data.unviewedLogs.length > 0) {
+          console.log('📬 找到未查看日志:', response.data.unviewedLogs.length);
+          setUnviewedLogs(response.data.unviewedLogs);
+          setShowLogModal(true);
+          console.log('✅ 已设置 showLogModal = true');
+        } else {
+          console.log('📭 没有未查看日志');
+        }
+      } catch (error) {
+        console.error('❌ 获取未查看日志失败:', error);
+      }
+    };
+    
+    checkUnviewedLogs();
+  }, [currentCourt?.id, user?.id, isEmperor]);
+  
   // 当没有大臣时，调用 SecondMe 生成无聊提示语
   useEffect(() => {
     if (ministers.length === 0 && isEmperor && currentCourt && user?.id) {
@@ -1259,7 +1319,6 @@ export default function Home() {
   const handleStartConquest = () => {
     setShowSceneCardFlip(false);
     setShowConquestVideo(true);
-    setIsConquesting(true);
   };
   
   // 征战完成（视频播放结束）
@@ -1286,7 +1345,6 @@ export default function Home() {
     } finally {
       // 关闭视频
       setShowConquestVideo(false);
-      setIsConquesting(false);
       setIsFlippingScene(false);
       setSelectedScene(null);
     }
@@ -3576,6 +3634,13 @@ export default function Home() {
           </video>
         </div>
       )}
+      
+      {/* 皇帝毒舌日志弹窗 */}
+      <LogModal 
+        logs={unviewedLogs} 
+        onConfirm={handleLogConfirm}
+        isOpen={showLogModal}
+      />
     </div>
   );
 }

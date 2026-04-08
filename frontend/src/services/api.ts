@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { useAuthStore } from '../stores/authStore';
 
-const API_BASE_URL = 'https://backend-production-a216.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backend-production-a216.up.railway.app';
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
@@ -36,7 +36,7 @@ export default api;
 
 export const authAPI = {
   login: () => {
-    const loginUrl = `https://backend-production-a216.up.railway.app/api/auth/secondme/login?frontend_url=${encodeURIComponent(window.location.origin)}`;
+    const loginUrl = `${API_BASE_URL}/api/auth/secondme/login?frontend_url=${encodeURIComponent(window.location.origin)}`;
     window.location.href = loginUrl;
   },
   getMe: () => api.get('/auth/me'),
@@ -151,4 +151,22 @@ export const territoryAPI = {
   // 获取所有场景配置
   getAllScenes: () =>
     api.get('/territory/scenes/all'),
+};
+
+export const logsAPI = {
+  // 获取未查看的日志
+  getUnviewed: (courtId: string, userId: string, limit: number = 50) =>
+    api.get(`/logs/unviewed/${courtId}/${userId}?limit=${limit}`),
+  // 获取日志历史
+  getHistory: (courtId: string, userId: string, limit: number = 50, offset: number = 0) =>
+    api.get(`/logs/history/${courtId}/${userId}?limit=${limit}&offset=${offset}`),
+  // 标记日志为已查看
+  markAsViewed: (courtId: string, userId: string, logIds: string[]) =>
+    api.post('/logs/mark-viewed', { courtId, userId, logIds }),
+  // 获取日志进度
+  getProgress: (courtId: string, userId: string) =>
+    api.get(`/logs/progress/${courtId}/${userId}`),
+  // 获取未查看日志数量
+  getUnviewedCount: (courtId: string, userId: string) =>
+    api.get(`/logs/unviewed-count/${courtId}/${userId}`),
 };

@@ -15,6 +15,7 @@ import fileRoutes from './routes/files';
 import ttsRoutes from './routes/tts';
 import whisperRoutes from './routes/whispers';
 import territoryRoutes from './routes/territory';
+import sarcasmLogsRoutes from './routes/sarcasm-logs';
 import { dailySettlementJob } from './jobs/daily-settlement';
 import { wsService } from './lib/websocket';
 
@@ -61,6 +62,7 @@ app.use('/api/files', fileRoutes);
 app.use('/api/tts', ttsRoutes);
 app.use('/api/whispers', whisperRoutes);
 app.use('/api/territory', territoryRoutes);
+app.use('/api/logs', sarcasmLogsRoutes);
 
 // 健康检查
 app.get('/health', (req, res) => {
