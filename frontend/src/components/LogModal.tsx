@@ -84,6 +84,8 @@ export const LogModal: React.FC<LogModalProps> = ({
 
   const emperorAvatar = emperorInfo ? getAvatar(emperorInfo.gender, true) : kingImage;
   const ministerAvatar = ministerInfo ? getAvatar(ministerInfo.gender, false) : boyImage;
+  const emperorName = emperorInfo?.nickname || '皇上';
+  const ministerName = ministerInfo?.nickname || '大臣';
 
   return (
     <div className="log-modal-overlay">
@@ -96,17 +98,16 @@ export const LogModal: React.FC<LogModalProps> = ({
           {/* 顶部：大臣信息（左上角） */}
           <div className="edict-header">
             <div className="edict-minister-info">
-              <img src={ministerAvatar} alt="大臣" className="edict-avatar-small" />
-              <span className="edict-name">{ministerInfo?.nickname || '大臣'}</span>
+              <img src={ministerAvatar} alt={ministerName} className="edict-avatar-small" />
+              <span className="edict-name">{ministerName}</span>
             </div>
           </div>
 
           {/* 日志列表区域（可滚动） */}
           <div className="edict-logs-container">
-            {logs.map((log, index) => (
+            {logs.map((log) => (
               <div key={log.id} className="edict-log-item">
-                <div className="edict-log-number">{index + 1}.</div>
-                <div className="edict-log-content">{log.log_message}</div>
+                {log.log_message}
               </div>
             ))}
             
@@ -120,8 +121,8 @@ export const LogModal: React.FC<LogModalProps> = ({
           {/* 底部：皇帝信息（右下角） */}
           <div className="edict-footer-info">
             <div className="edict-emperor-info">
-              <span className="edict-emperor-name">{emperorInfo?.nickname || '皇上'}</span>
-              <img src={emperorAvatar} alt="皇帝" className="edict-avatar-small" />
+              <span className="edict-emperor-name">{emperorName}</span>
+              <img src={emperorAvatar} alt={emperorName} className="edict-avatar-small" />
             </div>
           </div>
         </div>
@@ -132,7 +133,7 @@ export const LogModal: React.FC<LogModalProps> = ({
             className="edict-confirm-button"
             onClick={onConfirm}
           >
-            朕已阅 ({logs.length} 条屈辱日志)
+            朕已阅
           </button>
         </div>
       </div>

@@ -3640,9 +3640,9 @@ export default function Home() {
         logs={unviewedLogs} 
         onConfirm={handleLogConfirm}
         isOpen={showLogModal}
-        emperorInfo={emperor ? {
-          nickname: emperor.nickname || '皇上',
-          gender: (emperor.gender === 'male' || emperor.gender === 'female') ? emperor.gender : 'male'
+        emperorInfo={emperor?.user ? {
+          nickname: emperor.user.nickname || '皇上',
+          gender: (emperor.user.gender === 'male' || emperor.user.gender === 'female') ? emperor.user.gender : 'male'
         } : undefined}
         ministerInfo={user ? {
           nickname: user.nickname || '大臣',
