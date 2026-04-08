@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import '../styles/LogModal.css';
 import shengzhiImage from '../recourse/shengzhi.png';
 import kingImage from '../recourse/king.png';
@@ -21,10 +21,12 @@ interface LogModalProps {
   emperorInfo?: {
     nickname: string;
     gender: 'male' | 'female';
+    avatarUrl?: string;
   };
   ministerInfo?: {
     nickname: string;
     gender: 'male' | 'female';
+    avatarUrl?: string;
   };
 }
 
@@ -64,17 +66,50 @@ export const LogModal: React.FC<LogModalProps> = ({
   emperorInfo, 
   ministerInfo 
 }) => {
+  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
+  const logsContainerRef = useRef<HTMLDivElement>(null);
+
   // 随机选择一条无能大臣奖评价（使用 useMemo 确保每次打开弹窗时只选择一次）
   const randomAward = useMemo(() => {
     return INCOMPETENT_AWARDS[Math.floor(Math.random() * INCOMPETENT_AWARDS.length)];
   }, [logs.length]); // 当日志数量变化时重新选择
 
+  // 监听滚动事件，检测是否滚动到底部
+  useEffect(() => {
+    const container = logsContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // 允许 10px 的误差
+      if (scrollTop + clientHeight >= scrollHeight - 10) {
+        setHasScrolledToBottom(true);
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    // 初始检查是否已经在底部（内容较少时）
+    handleScroll();
+
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [isOpen, logs.length]);
+
+  // 重置滚动状态
+  useEffect(() => {
+    if (isOpen) {
+      setHasScrolledToBottom(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen || logs.length === 0) {
     return null;
   }
 
-  // 获取头像
-  const getAvatar = (gender: 'male' | 'female', isEmperor: boolean) => {
+  // 获取头像 - 优先使用真实头像，否则使用默认头像
+  const getAvatar = (avatarUrl: string | undefined, gender: 'male' | 'female', isEmperor: boolean) => {
+    if (avatarUrl) {
+      return avatarUrl;
+    }
     if (isEmperor) {
       return gender === 'male' ? kingImage : queenImage;
     } else {
@@ -82,8 +117,8 @@ export const LogModal: React.FC<LogModalProps> = ({
     }
   };
 
-  const emperorAvatar = emperorInfo ? getAvatar(emperorInfo.gender, true) : kingImage;
-  const ministerAvatar = ministerInfo ? getAvatar(ministerInfo.gender, false) : boyImage;
+  const emperorAvatar = getAvatar(emperorInfo?.avatarUrl, emperorInfo?.gender || 'male', true);
+  const ministerAvatar = getAvatar(ministerInfo?.avatarUrl, ministerInfo?.gender || 'male', false);
   const emperorName = emperorInfo?.nickname || '皇上';
   const ministerName = ministerInfo?.nickname || '大臣';
 
@@ -104,7 +139,7 @@ export const LogModal: React.FC<LogModalProps> = ({
           </div>
 
           {/* 日志列表区域（可滚动） */}
-          <div className="edict-logs-container">
+          <div className="edict-logs-container" ref={logsContainerRef}>
             {logs.map((log) => (
               <div key={log.id} className="edict-log-item">
                 {log.log_message}
@@ -132,8 +167,10 @@ export const LogModal: React.FC<LogModalProps> = ({
           <button
             className="edict-confirm-button"
             onClick={onConfirm}
+            disabled={!hasScrolledToBottom}
+            title={hasScrolledToBottom ? '' : '请滚动到底部查看完所有内容'}
           >
-            朕已阅
+            臣接旨
           </button>
         </div>
       </div>

@@ -3642,11 +3642,13 @@ export default function Home() {
         isOpen={showLogModal}
         emperorInfo={emperor?.user ? {
           nickname: emperor.user.nickname || '皇上',
-          gender: (emperor.user.gender === 'male' || emperor.user.gender === 'female') ? emperor.user.gender : 'male'
+          gender: (emperor.user.gender === 'male' || emperor.user.gender === 'female') ? emperor.user.gender : 'male',
+          avatarUrl: emperor.user.avatar
         } : undefined}
         ministerInfo={user ? {
           nickname: user.nickname || '大臣',
-          gender: (user.gender === 'male' || user.gender === 'female') ? user.gender : 'male'
+          gender: (user.gender === 'male' || user.gender === 'female') ? user.gender : 'male',
+          avatarUrl: user.avatar
         } : undefined}
       />
     </div>
